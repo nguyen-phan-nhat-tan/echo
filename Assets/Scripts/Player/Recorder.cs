@@ -30,11 +30,13 @@ public class Recorder : MonoBehaviour
             recordedFrames.Add(new FrameData(
                 transform.position, 
                 player.rotationAngle, 
-                player.justShotTargetFrame // Ghi lại sự kiện bắn (True/False)
+                player.justShotTargetFrame,
+                player.justDashedTargetFrame // <--- Capture Dash
             ));
             
             // QUAN TRỌNG: Reset lại cờ sau khi đã ghi
             player.justShotTargetFrame = false;
+            player.justDashedTargetFrame = false;
         }
     }
 }
