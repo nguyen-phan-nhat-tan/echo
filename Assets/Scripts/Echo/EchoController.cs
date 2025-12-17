@@ -5,21 +5,22 @@ using DG.Tweening;
 
 public class EchoController : MonoBehaviour
 {
+    public static event Action<int> OnEnemyKilled;
+
+    [Header("References")]
+    public Transform firePoint;
+    private WeaponData currentWeapon; // <--- NEW: Stores the specific gun for this loop
+
     private List<FrameData> framesToPlay;
     private int currentFrameIndex = 0;
-    public GameObject bulletPrefab;
-    public Transform firePoint;
     
     [Header("State Flags")]
     private bool isDead = false; 
     private bool isStaticDummy = false;
-    private bool wasDashing = false; // Tracks previous frame state
-    
-    public static event Action<int> OnEnemyKilled;
+    private bool wasDashing = false;
     
     private SpriteRenderer spriteRenderer;
     private Collider2D col;
-    
     private Color originalColor = Color.red;
     
     void Awake()
@@ -28,28 +29,28 @@ public class EchoController : MonoBehaviour
         col = GetComponent<Collider2D>();
         originalColor = spriteRenderer.color;
     }
-    
-    // Hàm khởi tạo cho Echo bình thường (có di chuyển)
-    public void Initialize(List<FrameData> frames)
+
+    // --- UPDATE 1: Accept WeaponData ---
+    public void Initialize(List<FrameData> frames, WeaponData weapon)
     {
         framesToPlay = new List<FrameData>(frames);
-        currentFrameIndex = 0;
-        isStaticDummy = false; // Đảm bảo không phải là dummy
-        wasDashing = false;
+        currentWeapon = weapon; // Store it!
         
-        ResetState(); // Gọi hàm reset trạng thái chung
-    }
-
-    // MỚI: Hàm khởi tạo cho Echo hình nhân (đứng im ở Loop 1)
-    public void InitializeDummy()
-    {
-        isStaticDummy = true;
-        framesToPlay = null; 
+        currentFrameIndex = 0;
+        isStaticDummy = false;
+        wasDashing = false;
         
         ResetState();
     }
 
-    // Hàm phụ để reset màu sắc và va chạm (dùng chung)
+    public void InitializeDummy()
+    {
+        isStaticDummy = true;
+        framesToPlay = null; 
+        currentWeapon = null; // Dummy has no gun
+        ResetState();
+    }
+
     void ResetState()
     {
         isDead = false;
@@ -57,36 +58,26 @@ public class EchoController : MonoBehaviour
         spriteRenderer.DOFade(0.7f, 0f);  
         col.enabled = true;               
         tag = "Enemy";                    
-        
-        // Hiệu ứng xuất hiện
         transform.localScale = Vector3.zero;
         transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack);
     }
 
     void FixedUpdate()
     {
-        if (isDead || isStaticDummy) return; // Logic cũ
+        if (isDead || isStaticDummy) return; 
         
         if (framesToPlay == null || currentFrameIndex >= framesToPlay.Count) return;
 
         FrameData data = framesToPlay[currentFrameIndex];
 
-        // Tái hiện di chuyển (Giữ nguyên)
         transform.position = data.position;
         transform.rotation = Quaternion.Euler(0f, 0f, data.rotation - 90f);
 
-        if (data.isDashing && !wasDashing)
-        {
-            StartDash();
-        }
-        else if (!data.isDashing && wasDashing)
-        {
-            EndDash();
-        }
+        if (data.isDashing && !wasDashing) StartDash();
+        else if (!data.isDashing && wasDashing) EndDash();
+        
         wasDashing = data.isDashing;
 
-        // 3. Handle Shooting
-        // Only shoot if NOT dashing (prevent weird sliding shots)
         if (data.isShooting && !data.isDashing) 
         {
             FireBullet();
@@ -97,27 +88,33 @@ public class EchoController : MonoBehaviour
     
     void StartDash()
     {
-        // Visuals: Turn Cyan and Transparent (Ghostly)
         spriteRenderer.DOColor(Color.cyan, 0.1f);
         spriteRenderer.DOFade(0.4f, 0.1f);
-
-        // Logic: Disable collider so we don't unfairly kill player
         col.enabled = false;
     }
     
     void EndDash()
     {
-        // Visuals: Return to Red and Normal Opacity
         spriteRenderer.DOColor(originalColor, 0.1f);
         spriteRenderer.DOFade(0.7f, 0.1f);
-
-        // Logic: Re-enable collider to become lethal again
         col.enabled = true;
     }
     
+    // --- UPDATE 2: Safe Firing Logic ---
     void FireBullet()
     {
-        ObjectPooler.Instance.SpawnFromPool("EnemyBullet", firePoint.position, firePoint.rotation);
+        // Safety Check: If data is missing or it's a dummy, don't crash
+        if (currentWeapon == null) return;
+
+        // Use the WEAPON DATA to spawn bullets (Spread / Count)
+        for (int i = 0; i < currentWeapon.bulletCount; i++)
+        {
+            float randomSpread = UnityEngine.Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
+            Quaternion finalRotation = firePoint.rotation * Quaternion.Euler(0, 0, randomSpread);
+
+            // Assuming you have "EnemyBullet" in your pool. 
+            ObjectPooler.Instance.SpawnFromPool("EnemyBullet", firePoint.position, finalRotation);
+        }
     }
     
     public void Die()
@@ -125,15 +122,23 @@ public class EchoController : MonoBehaviour
         if (isDead) return; 
         isDead = true;
         
+        // Tag first to prevent double-counting
+        gameObject.tag = "Untagged"; 
         OnEnemyKilled?.Invoke(100);
         
         spriteRenderer.DOKill();
-        spriteRenderer.color = Color.gray; 
+        
+        // Corpse Visuals
+        spriteRenderer.color = new Color(0.3f, 0f, 0f, 1f); 
         spriteRenderer.DOFade(0.8f, 0.2f);
+        spriteRenderer.sortingOrder = -1; 
 
         col.enabled = false;
-        gameObject.tag = "Untagged"; 
-        
-        transform.DOShakeScale(0.2f, 0.5f);
+    }
+    
+    void OnDestroy()
+    {
+        transform.DOKill(); 
+        if (spriteRenderer != null) spriteRenderer.DOKill();
     }
 }

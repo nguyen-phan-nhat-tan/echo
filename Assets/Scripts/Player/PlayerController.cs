@@ -11,8 +11,8 @@ public class PlayerController : MonoBehaviour
     private Rigidbody2D rb;
     private Vector2 moveInput;
     
-    [Header("Combat Settings")]
-    public float fireRate = 5f; // Bắn 5 viên/giây
+    [Header("Weapon System")]
+    private WeaponData currentWeapon; // The current stats
     private float nextFireTime = 0f;
     
     [Header("Dash Settings")] // <--- NEW SECTION
@@ -37,7 +37,12 @@ public class PlayerController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
     }
-
+    
+    public void EquipWeapon(WeaponData newData)
+    {
+        currentWeapon = newData;
+    }
+    
     void Update()
     {
         if (isDashing) return;
@@ -61,9 +66,12 @@ public class PlayerController : MonoBehaviour
         // Ở đây giả lập nhấn Space hoặc nút UI Attack
         if (Input.GetKey(KeyCode.LeftShift) && Time.time >= nextFireTime)
         {
-            Shoot();
-            nextFireTime = Time.time + 1f / fireRate;
-            justShotTargetFrame = true; 
+            if (Time.time >= nextFireTime)
+            {
+                Shoot();
+                nextFireTime = Time.time + 1f / currentWeapon.fireRate;
+                justShotTargetFrame = true; 
+            }
         }
     }
 
@@ -71,21 +79,17 @@ public class PlayerController : MonoBehaviour
     {
         if (isDashing)
         {
-            // Move very fast in the forward direction
             rb.MovePosition(rb.position + (Vector2)transform.up * dashSpeed * Time.fixedDeltaTime);
         }
         else
         {
-            // Normal movement
             rb.MovePosition(rb.position + moveInput * moveSpeed * Time.fixedDeltaTime);
         }
     }
 
     void Shoot()
     {
-        // Giới hạn tốc độ bắn (FireRate) ở đây nếu cần
-        // Tìm dòng bắn đạn và sửa tag thành "PlayerBullet"
-        Quaternion finalRotation = firePoint.rotation;
+        Quaternion baseRotation = firePoint.rotation;
         Transform target = GetClosestEnemyInSights();
 
         // If we found a valid target, snap aim to them
@@ -93,12 +97,22 @@ public class PlayerController : MonoBehaviour
         {
             Vector2 directionToTarget = target.position - firePoint.position;
             float angle = Mathf.Atan2(directionToTarget.y, directionToTarget.x) * Mathf.Rad2Deg;
-            finalRotation = Quaternion.Euler(0f, 0f, angle - 90f);
+            baseRotation = Quaternion.Euler(0f, 0f, angle - 90f);
         }
 
-        // Use the calculated rotation instead of the default firePoint.rotation
-        ObjectPooler.Instance.SpawnFromPool("PlayerBullet", firePoint.position, finalRotation);
-        if (CameraShaker.Instance != null) CameraShaker.Instance.ShakeShoot();
+        for (int i = 0; i < currentWeapon.bulletCount; i++)
+        {
+            // Calculate Spread
+            // If spread is 15 degrees, we pick a random angle between -7.5 and +7.5
+            float randomSpread = Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
+            Quaternion finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
+
+            ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
+        }
+
+        // 3. JUICE (Use Data intensity)
+        if (CameraShaker.Instance != null) 
+            CameraShaker.Instance.Shake(currentWeapon.shakeIntensity, 0.1f);
     }
     Transform GetClosestEnemyInSights()
     {
@@ -115,17 +129,13 @@ public class PlayerController : MonoBehaviour
 
             Vector2 directionToEnemy = (hit.transform.position - transform.position).normalized;
             
-            // 2. Check if Enemy is within our movement/facing angle (The Cone)
-            // We use the joystick input (moveInput) to determine where we are 'trying' to aim
             if (moveInput != Vector2.zero)
             {
                 float angleToEnemy = Vector2.Angle(moveInput, directionToEnemy);
                 
-                // If enemy is outside the cone, ignore them
                 if (angleToEnemy > assistAngle / 2) continue;
             }
-
-            // 3. Find the closest one among the valid ones
+            
             float distance = Vector2.Distance(transform.position, hit.transform.position);
             if (distance < closestDistance)
             {
@@ -139,35 +149,55 @@ public class PlayerController : MonoBehaviour
     IEnumerator Dash()
     {
         isDashing = true;
-        justDashedTargetFrame = true; // Tell recorder we dashed
+        justDashedTargetFrame = true;
         nextDashTime = Time.time + dashCooldown;
-
-        // This effectively gives us I-Frames because we check 'isDashing' in collision
+        
         yield return new WaitForSeconds(dashDuration);
 
         isDashing = false;
     }
-    // Hàm này tự động chạy khi Player va chạm vật lý với ai đó
-    void OnCollisionEnter2D(Collision2D other)
+
+    void OnCollisionEnter2D(Collision2D collision)
     {
-        // Kiểm tra xem cái mình vừa tông vào có phải là Enemy (Echo) không
+        // I-Frames: If dashing, we phase through them
         if (isDashing) return;
 
-        // Standard Hit Logic
-        if (other.gameObject.CompareTag("EnemyBullet"))
+        // Check if we hit an Echo (Enemy Tag)
+        if (collision.gameObject.CompareTag("Enemy"))
         {
-            Debug.Log("Player Hit by Bullet!");
-            // TODO: Notify GameManager of Death
+            Debug.Log("Game Over: Touched Echo!");
+            
+            // CRITICAL FIX: Notify the manager!
+            if (GameManager.Instance != null) 
+                GameManager.Instance.EndLoop(false);
+        }
+    }
+    
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        // I-Frames: If dashing, bullets pass through us
+        if (isDashing) return;
+
+        // Check if we hit a Bullet
+        if (other.CompareTag("EnemyBullet"))
+        {
+            Debug.Log("Game Over: Shot by Bullet!");
+            
+            // CRITICAL FIX: Notify the manager!
+            if (GameManager.Instance != null) 
+                GameManager.Instance.EndLoop(false);
+            
+            // Cleanup the bullet so it looks like it hit us
+            Destroy(other.gameObject); 
         }
     }
     
     public void ResetState()
     {
         isDashing = false;
-        justDashedTargetFrame = false; // Clear recorder flag
-        nextDashTime = 0f; // Reset cooldown so you can dash immediately
-    
-        // Stop any lingering physics forces from the previous loop
+        justDashedTargetFrame = false;
+        nextDashTime = 0f;
+        
         if(rb != null) rb.velocity = Vector2.zero;
     }
 
