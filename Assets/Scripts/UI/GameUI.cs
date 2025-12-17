@@ -2,7 +2,8 @@ using UnityEngine;
 using TMPro;
 using DG.Tweening;
 using System;
-    
+using UnityEngine.SceneManagement;
+
 public class GameUI : MonoBehaviour
 {
     public static GameUI Instance;
@@ -22,20 +23,24 @@ public class GameUI : MonoBehaviour
     public TextMeshProUGUI summaryScoreText; 
     public TextMeshProUGUI summaryTimeText;  
     public TextMeshProUGUI summaryTotalText; 
-
+    
+    [Header("Game Over UI")]
+    public CanvasGroup gameOverGroup;
+    public TextMeshProUGUI finalScoreText;
+    public TextMeshProUGUI finalLoopText;
+    
     void Awake()
     {
         Instance = this;
         
-        // 1. INITIAL SETUP: Hide everything and UNBLOCK input
         introGroup.alpha = 0;
-        introGroup.blocksRaycasts = false; // Crucial: Mouse clicks pass through
-
         summaryGroup.alpha = 0;
-        summaryGroup.blocksRaycasts = false; // Crucial: Mouse clicks pass through
+        gameOverGroup.alpha = 0;
+        
+        introGroup.blocksRaycasts = false;
+        summaryGroup.blocksRaycasts = false;
+        gameOverGroup.blocksRaycasts = false;
     }
-
-    // --- HUD METHODS (Keep these to fix GameManager errors) ---
 
     public void UpdateTimer(float timeRemaining)
     {
@@ -59,16 +64,14 @@ public class GameUI : MonoBehaviour
         }
     }
 
-    public void UpdateLoop(int loopCount) { } // Hidden intentionally
-    public void UpdateScore(int score) { }    // Hidden intentionally
-
-    // ---------------------------------------------------------
+    public void UpdateLoop(int loopCount) { }
+    public void UpdateScore(int score) { }
 
     public void ShowLoopStart(int loopCount, string weaponName, Action onIntroFinished)
     {
         introLoopText.text = "LOOP " + loopCount;
         introWeaponText.text = "WEAPON: " + weaponName;
-        
+        introGroup.alpha = 1f;
         Sequence seq = DOTween.Sequence();
         seq.Append(introGroup.DOFade(1f, 0.5f));
         seq.AppendInterval(1.5f); 
@@ -78,14 +81,13 @@ public class GameUI : MonoBehaviour
 
     public void ShowWinSummary(int baseScore, float timeLeft, int totalScore)
     {
-        // 2. BLOCK INPUT: Player cannot move while reading stats
         summaryGroup.blocksRaycasts = true; 
 
         summaryScoreText.text = baseScore.ToString("N0");
         summaryTimeText.text = "+" + (timeLeft * 100).ToString("N0"); 
         summaryTotalText.text = "CALCULATING...";
-
-        summaryGroup.DOFade(1f, 0.2f);
+    
+        summaryGroup.alpha = 1f;
 
         DOTween.To(() => baseScore, x => summaryTotalText.text = x.ToString("N0"), totalScore, 1f)
             .SetDelay(0.5f) 
@@ -94,9 +96,22 @@ public class GameUI : MonoBehaviour
 
     public void HideSummary()
     {
-        // 3. UNBLOCK INPUT: Restore joystick control
         summaryGroup.blocksRaycasts = false; 
         
         summaryGroup.DOFade(0f, 0.2f);
+    }
+    
+    public void ShowGameOver(int totalScore, int loopsSurvived)
+    {
+        gameOverGroup.blocksRaycasts = true;
+
+        finalScoreText.text = "FINAL SCORE: " + totalScore.ToString("N0");
+        finalLoopText.text = "GAME OVER";
+        gameOverGroup.DOFade(1f, 1f).SetEase(Ease.OutExpo);
+    }
+    
+    public void RetryGame()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }
