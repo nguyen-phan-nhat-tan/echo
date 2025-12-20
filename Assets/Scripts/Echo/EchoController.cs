@@ -9,7 +9,7 @@ public class EchoController : MonoBehaviour
 
     [Header("References")]
     public Transform firePoint;
-    private WeaponData currentWeapon; // <--- NEW: Stores the specific gun for this loop
+    private WeaponData currentWeapon;
 
     private List<FrameData> framesToPlay;
     private int currentFrameIndex = 0;
@@ -30,11 +30,10 @@ public class EchoController : MonoBehaviour
         originalColor = spriteRenderer.color;
     }
 
-    // --- UPDATE 1: Accept WeaponData ---
     public void Initialize(List<FrameData> frames, WeaponData weapon)
     {
         framesToPlay = new List<FrameData>(frames);
-        currentWeapon = weapon; // Store it!
+        currentWeapon = weapon;
         
         currentFrameIndex = 0;
         isStaticDummy = false;
@@ -47,7 +46,7 @@ public class EchoController : MonoBehaviour
     {
         isStaticDummy = true;
         framesToPlay = null; 
-        currentWeapon = null; // Dummy has no gun
+        currentWeapon = null;
         ResetState();
     }
 
@@ -65,7 +64,7 @@ public class EchoController : MonoBehaviour
     void FixedUpdate()
     {
         if (isDead || isStaticDummy) return; 
-        
+        if (GameManager.Instance.currentState != GameState.Playing) return;
         if (framesToPlay == null || currentFrameIndex >= framesToPlay.Count) return;
 
         FrameData data = framesToPlay[currentFrameIndex];
@@ -100,19 +99,15 @@ public class EchoController : MonoBehaviour
         col.enabled = true;
     }
     
-    // --- UPDATE 2: Safe Firing Logic ---
     void FireBullet()
     {
-        // Safety Check: If data is missing or it's a dummy, don't crash
         if (currentWeapon == null) return;
-
-        // Use the WEAPON DATA to spawn bullets (Spread / Count)
+        
         for (int i = 0; i < currentWeapon.bulletCount; i++)
         {
             float randomSpread = UnityEngine.Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
             Quaternion finalRotation = firePoint.rotation * Quaternion.Euler(0, 0, randomSpread);
-
-            // Assuming you have "EnemyBullet" in your pool. 
+            
             ObjectPooler.Instance.SpawnFromPool("EnemyBullet", firePoint.position, finalRotation);
         }
     }
@@ -122,13 +117,11 @@ public class EchoController : MonoBehaviour
         if (isDead) return; 
         isDead = true;
         
-        // Tag first to prevent double-counting
         gameObject.tag = "Untagged"; 
         OnEnemyKilled?.Invoke(100);
         
         spriteRenderer.DOKill();
-        
-        // Corpse Visuals
+
         spriteRenderer.color = new Color(0.3f, 0f, 0f, 1f); 
         spriteRenderer.DOFade(0.8f, 0.2f);
         spriteRenderer.sortingOrder = -1; 

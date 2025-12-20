@@ -3,15 +3,14 @@ using UnityEngine;
 
 public class ObjectPooler : MonoBehaviour
 {
-    // Singleton: Để gọi ObjectPooler.Instance từ bất kỳ đâu
     public static ObjectPooler Instance;
 
     [System.Serializable]
     public struct Pool
     {
-        public string tag;           // Tên nhãn (VD: "Bullet")
-        public GameObject prefab;    // Prefab cần pool
-        public int size;             // Số lượng tạo sẵn
+        public string tag;
+        public GameObject prefab;
+        public int size;
     }
 
     public List<Pool> pools;
@@ -33,7 +32,7 @@ public class ObjectPooler : MonoBehaviour
             for (int i = 0; i < pool.size; i++)
             {
                 GameObject obj = Instantiate(pool.prefab);
-                obj.SetActive(false); // Tắt nó đi chờ lệnh
+                obj.SetActive(false);
                 objectPool.Enqueue(obj);
             }
 
@@ -49,14 +48,12 @@ public class ObjectPooler : MonoBehaviour
             return null;
         }
 
-        // Lấy ra khỏi hàng chờ
         GameObject objectToSpawn = poolDictionary[tag].Dequeue();
 
         objectToSpawn.SetActive(true);
         objectToSpawn.transform.position = position;
         objectToSpawn.transform.rotation = rotation;
 
-        // Đưa lại vào cuối hàng chờ (để xoay vòng)
         poolDictionary[tag].Enqueue(objectToSpawn);
 
         return objectToSpawn;

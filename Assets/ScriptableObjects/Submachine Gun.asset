@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f708aa8562234394f928417d6451c5bc, type: 3}
   m_Name: Submachine Gun
   m_EditorClassIdentifier: 
-  weaponName: Pistol
-  fireRate: 12
+  weaponName: Submachine Gun
+  fireRate: 50
   bulletCount: 1
-  spreadAngle: 10
+  spreadAngle: 2
   bulletTag: PlayerBullet
   shakeIntensity: 0.2
