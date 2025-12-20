@@ -12,23 +12,22 @@ public class PlayerController : MonoBehaviour
     private Vector2 moveInput;
     
     [Header("Weapon System")]
-    private WeaponData currentWeapon; // The current stats
+    private WeaponData currentWeapon;
     private float nextFireTime = 0f;
     
-    [Header("Dash Settings")] // <--- NEW SECTION
+    [Header("Dash Settings")]
     public float dashSpeed = 15f;
     public float dashDuration = 0.2f;
     public float dashCooldown = 1f;
     private float nextDashTime = 0f;
     
     [Header("Aim Assist")]
-    public float assistRange = 5f;       // How far we scan
-    public float assistAngle = 45f;      // The width of the cone (half-angle)
+    public float assistRange = 5f;
+    public float assistAngle = 45f;
     public LayerMask enemyLayer;
     
-    [HideInInspector] public bool isDashing = false; // "I-Frame" flag
+    [HideInInspector] public bool isDashing = false;
     
-    // Biến dùng để ghi dữ liệu (sẽ nói ở Bước 3)
     [HideInInspector] public bool justShotTargetFrame = false;
     [HideInInspector] public bool justDashedTargetFrame = false;
     [HideInInspector] public float rotationAngle;
@@ -47,11 +46,9 @@ public class PlayerController : MonoBehaviour
     {
         if (isDashing) return;
         
-        // Input di chuyển
         moveInput.x = joystick.Horizontal;
         moveInput.y = joystick.Vertical;
-
-        // Xoay nhân vật theo hướng di chuyển
+        
         if (moveInput != Vector2.zero)
         {
             rotationAngle = Mathf.Atan2(moveInput.y, moveInput.x) * Mathf.Rad2Deg;
@@ -62,8 +59,6 @@ public class PlayerController : MonoBehaviour
         {
             StartCoroutine(Dash());
         }
-        // Logic bắn súng (Nút Attack - hoặc giữ để spam)
-        // Ở đây giả lập nhấn Space hoặc nút UI Attack
         if (Input.GetKey(KeyCode.LeftShift) && Time.time >= nextFireTime)
         {
             if (Time.time >= nextFireTime)
@@ -91,8 +86,7 @@ public class PlayerController : MonoBehaviour
     {
         Quaternion baseRotation = firePoint.rotation;
         Transform target = GetClosestEnemyInSights();
-
-        // If we found a valid target, snap aim to them
+        
         if (target != null)
         {
             Vector2 directionToTarget = target.position - firePoint.position;
@@ -102,21 +96,17 @@ public class PlayerController : MonoBehaviour
 
         for (int i = 0; i < currentWeapon.bulletCount; i++)
         {
-            // Calculate Spread
-            // If spread is 15 degrees, we pick a random angle between -7.5 and +7.5
             float randomSpread = Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
             Quaternion finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
 
             ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
         }
-
-        // 3. JUICE (Use Data intensity)
+        
         if (CameraShaker.Instance != null) 
             CameraShaker.Instance.Shake(currentWeapon.shakeIntensity, 0.1f);
     }
     Transform GetClosestEnemyInSights()
     {
-        // 1. Get all colliders within range
         Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, assistRange, enemyLayer);
         
         Transform bestTarget = null;
@@ -124,7 +114,6 @@ public class PlayerController : MonoBehaviour
 
         foreach (Collider2D hit in hits)
         {
-            // Only care about Enemies
             if (!hit.CompareTag("Enemy")) continue;
 
             Vector2 directionToEnemy = (hit.transform.position - transform.position).normalized;
@@ -159,15 +148,11 @@ public class PlayerController : MonoBehaviour
 
     void OnCollisionEnter2D(Collision2D collision)
     {
-        // I-Frames: If dashing, we phase through them
         if (isDashing) return;
-
-        // Check if we hit an Echo (Enemy Tag)
+        
         if (collision.gameObject.CompareTag("Enemy"))
         {
             Debug.Log("Game Over: Touched Echo!");
-            
-            // CRITICAL FIX: Notify the manager!
             if (GameManager.Instance != null) 
                 GameManager.Instance.EndLoop(false);
         }
@@ -175,19 +160,15 @@ public class PlayerController : MonoBehaviour
     
     void OnTriggerEnter2D(Collider2D other)
     {
-        // I-Frames: If dashing, bullets pass through us
         if (isDashing) return;
-
-        // Check if we hit a Bullet
+        
         if (other.CompareTag("EnemyBullet"))
         {
             Debug.Log("Game Over: Shot by Bullet!");
             
-            // CRITICAL FIX: Notify the manager!
             if (GameManager.Instance != null) 
                 GameManager.Instance.EndLoop(false);
-            
-            // Cleanup the bullet so it looks like it hit us
+
             Destroy(other.gameObject); 
         }
     }

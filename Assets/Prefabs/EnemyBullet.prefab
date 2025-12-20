@@ -136,6 +136,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ef9b71a16ab6094fbdabb4e9d3e8659, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 10
+  speed: 20
   lifeTime: 10
   isEnemyBullet: 1

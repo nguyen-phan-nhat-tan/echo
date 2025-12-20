@@ -139,7 +139,7 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            currentState = GameState.GameOver; // Stop the game logic
+            currentState = GameState.GameOver;
             Debug.Log("Game Over!");
 
             // Show UI

@@ -32,7 +32,7 @@ public class Bullet : MonoBehaviour
             return;
         }
 
-        if (isEnemyBullet) // NẾU LÀ ĐẠN ĐỊCH
+        if (isEnemyBullet)
         {
             if (other.CompareTag("Player"))
             {
@@ -41,21 +41,19 @@ public class Bullet : MonoBehaviour
                 gameObject.SetActive(false); 
             }
         }
-        else // NẾU LÀ ĐẠN PLAYER
+        else
         {
-            // Chỉ cần check va chạm với Enemy (Echo thường hoặc Dummy Echo)
+
             if (other.CompareTag("Enemy"))
             {
                 EchoController echo = other.GetComponent<EchoController>();
-                if (echo != null) echo.Die(); // Biến thành xác chết xám
+                if (echo != null) echo.Die();
             
-                gameObject.SetActive(false); // Đạn tắt
-            
-                // GỌI CHECK WIN
+                gameObject.SetActive(false);
+                
                 GameManager.Instance.CheckWinCondition();
             }
             
-            // ĐÃ XÓA đoạn check Tag "Target"
         }
     }
 }
