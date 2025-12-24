@@ -13,4 +13,8 @@ public class WeaponData : ScriptableObject
     [Header("Visuals")]
     public string bulletTag = "PlayerBullet";
     public float shakeIntensity = 0.2f;
+    
+    [Header("Audio")]
+    public SoundType shootSound;
+    public SoundType loadSound;
 }

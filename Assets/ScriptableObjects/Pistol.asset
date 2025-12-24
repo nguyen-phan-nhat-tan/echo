@@ -18,3 +18,5 @@ MonoBehaviour:
   spreadAngle: 2
   bulletTag: PlayerBullet
   shakeIntensity: 0.2
+  shootSound: 0
+  loadSound: 1
