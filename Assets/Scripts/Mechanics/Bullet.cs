@@ -4,8 +4,7 @@ using System.Collections;
 public class Bullet : MonoBehaviour
 {
     public float speed = 10f;
-    public float lifeTime = 10f; 
-    
+    public float lifeTime = 10f;
     public bool isEnemyBullet = false;
     
     void OnEnable() 
@@ -36,24 +35,21 @@ public class Bullet : MonoBehaviour
         {
             if (other.CompareTag("Player"))
             {
-                Debug.Log("Game Over! Bạn bị bắn trúng.");
+                Debug.Log("Game Over! Player Hit.");
                 GameManager.Instance.EndLoop(false); 
                 gameObject.SetActive(false); 
             }
         }
         else
         {
-
             if (other.CompareTag("Enemy"))
             {
                 EchoController echo = other.GetComponent<EchoController>();
                 if (echo != null) echo.Die();
             
                 gameObject.SetActive(false);
-                
                 GameManager.Instance.CheckWinCondition();
             }
-            
         }
     }
 }
