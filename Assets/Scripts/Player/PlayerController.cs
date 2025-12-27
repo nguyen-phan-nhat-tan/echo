@@ -102,6 +102,9 @@ public class PlayerController : MonoBehaviour
             ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
         }
         
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlaySound(currentWeapon.shootSound);
+        
         if (CameraShaker.Instance != null) 
             CameraShaker.Instance.Shake(currentWeapon.shakeIntensity, 0.1f);
     }
@@ -140,7 +143,7 @@ public class PlayerController : MonoBehaviour
         isDashing = true;
         justDashedTargetFrame = true;
         nextDashTime = Time.time + dashCooldown;
-        
+        SoundManager.Instance.PlaySound(SoundType.Dash);
         yield return new WaitForSeconds(dashDuration);
 
         isDashing = false;

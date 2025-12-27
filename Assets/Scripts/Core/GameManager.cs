@@ -82,6 +82,17 @@ public class GameManager : MonoBehaviour
         }
         activeEchoes.Clear();
         
+        GameUI.Instance.ShowLoopStart(currentLoop, selectedWeapon.weaponName.ToUpper(), () => 
+        {
+            currentState = GameState.Playing; 
+            playerRecorder.StartRecording();
+            
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlaySound(selectedWeapon.loadSound);
+            }
+        });
+        
         GameObject dummyEcho = Instantiate(echoPrefab, Vector3.zero, Quaternion.identity);
         dummyEcho.GetComponent<EchoController>().InitializeDummy(); 
         dummyEcho.tag = "Enemy"; 
@@ -123,6 +134,9 @@ public class GameManager : MonoBehaviour
         
         if (isWin)
         {
+            SoundManager.Instance.PlaySound(SoundType.Win);
+            SoundManager.Instance.PlaySound(SoundType.LoopRewind);
+            
             currentState = GameState.Rewinding;
             int timeBonus = Mathf.FloorToInt(currentTimer * 100); 
             int totalNewScore = currentScore + timeBonus;

@@ -80,6 +80,8 @@ public class EchoController : MonoBehaviour
         if (data.isShooting && !data.isDashing) 
         {
             FireBullet();
+            if (SoundManager.Instance != null && currentWeapon != null)
+                SoundManager.Instance.PlaySound(currentWeapon.shootSound);
         }
 
         currentFrameIndex++;

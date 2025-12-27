@@ -13,8 +13,10 @@ MonoBehaviour:
   m_Name: Submachine Gun
   m_EditorClassIdentifier: 
   weaponName: Submachine Gun
-  fireRate: 50
+  fireRate: 25
   bulletCount: 1
-  spreadAngle: 2
+  spreadAngle: 1
   bulletTag: PlayerBullet
   shakeIntensity: 0.2
+  shootSound: 4
+  loadSound: 5
