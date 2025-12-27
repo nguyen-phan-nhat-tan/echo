@@ -54,7 +54,10 @@ public class GameUI : MonoBehaviour
         if (timeRemaining <= 10f && timerText.color != warningColor)
         {
             timerText.color = warningColor;
-            timerText.transform.DOScale(1.2f, 0.5f).SetLoops(-1, LoopType.Yoyo);
+            // FIX: Linked to text object. If text dies, tween dies.
+            timerText.transform.DOScale(1.2f, 0.5f)
+                .SetLoops(-1, LoopType.Yoyo)
+                .SetLink(timerText.gameObject); 
         }
         else if (timeRemaining > 10f && timerText.color != normalColor)
         {
@@ -72,7 +75,10 @@ public class GameUI : MonoBehaviour
         introLoopText.text = "LOOP " + loopCount;
         introWeaponText.text = "WEAPON: " + weaponName;
         introGroup.alpha = 1f;
-        Sequence seq = DOTween.Sequence();
+        
+        // FIX: Linked to GameUI. If Scene reloads, this sequence stops.
+        Sequence seq = DOTween.Sequence().SetLink(gameObject);
+        
         seq.Append(introGroup.DOFade(1f, 0.5f));
         seq.AppendInterval(1.5f); 
         seq.Append(introGroup.DOFade(0f, 0.5f));
@@ -89,16 +95,19 @@ public class GameUI : MonoBehaviour
     
         summaryGroup.alpha = 1f;
 
+        // FIX: Linked to GameUI.
         DOTween.To(() => baseScore, x => summaryTotalText.text = x.ToString("N0"), totalScore, 1f)
             .SetDelay(0.5f) 
-            .SetEase(Ease.OutExpo);
+            .SetEase(Ease.OutExpo)
+            .SetUpdate(true) // Update even if Time.timeScale is 0
+            .SetLink(gameObject);
     }
 
     public void HideSummary()
     {
         summaryGroup.blocksRaycasts = false; 
-        
-        summaryGroup.DOFade(0f, 0.2f);
+        // FIX: Linked to summaryGroup
+        summaryGroup.DOFade(0f, 0.2f).SetLink(summaryGroup.gameObject);
     }
     
     public void ShowGameOver(int totalScore, int loopsSurvived)
@@ -107,11 +116,20 @@ public class GameUI : MonoBehaviour
 
         finalScoreText.text = "FINAL SCORE: " + totalScore.ToString("N0");
         finalLoopText.text = "GAME OVER";
-        gameOverGroup.DOFade(1f, 1f).SetEase(Ease.OutExpo);
+        
+        // FIX: Linked to gameOverGroup
+        gameOverGroup.DOFade(1f, 1f).SetEase(Ease.OutExpo).SetLink(gameOverGroup.gameObject);
     }
     
     public void RetryGame()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    public void OnNextLoopPressed()
+    {
+        HideSummary();
+        if(GameManager.Instance != null)
+            GameManager.Instance.ConfirmNextLoop();
     }
 }

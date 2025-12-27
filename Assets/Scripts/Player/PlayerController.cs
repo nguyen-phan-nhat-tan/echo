@@ -1,13 +1,18 @@
 using UnityEngine;
 using System.Collections;
+using DG.Tweening; // Keeping this if you need tweening
 
 public class PlayerController : MonoBehaviour
 {
+    [Header("Movement")]
     public float moveSpeed = 5f;
     public FloatingJoystick joystick;
-    public GameObject bulletPrefab;
     public Transform firePoint;
+    // public GameObject bulletPrefab; // Unused (we use ObjectPooler)
     
+    [Header("Visuals")]
+    public SpriteRenderer weaponRenderer; // Drag your Gun Sprite object here!
+
     private Rigidbody2D rb;
     private Vector2 moveInput;
     
@@ -26,24 +31,59 @@ public class PlayerController : MonoBehaviour
     public float assistAngle = 45f;
     public LayerMask enemyLayer;
     
+    // --- STATE FLAGS ---
     [HideInInspector] public bool isDashing = false;
+    private bool canControl = true; // NEW: Pauses input during Loop Transition
     
+    // --- RECORDER FLAGS ---
     [HideInInspector] public bool justShotTargetFrame = false;
     [HideInInspector] public bool justDashedTargetFrame = false;
     [HideInInspector] public float rotationAngle;
 
-    void Start()
+    void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
     }
+
+    // --- NEW: EVENT LISTENING (For Pausing) ---
+    void OnEnable()
+    {
+        GameEvents.OnStateChanged += OnGameStateChanged;
+    }
+
+    void OnDisable()
+    {
+        GameEvents.OnStateChanged -= OnGameStateChanged;
+    }
+
+    private void OnGameStateChanged(GameState newState)
+    {
+        // Only allow movement if the game is actually Playing
+        canControl = (newState == GameState.Playing);
+        
+        if (!canControl)
+        {
+            rb.velocity = Vector2.zero;
+            moveInput = Vector2.zero;
+        }
+    }
+    // ------------------------------------------
     
     public void EquipWeapon(WeaponData newData)
     {
         currentWeapon = newData;
+
+        // NEW: Visual Update
+        if (weaponRenderer != null && newData.weaponSprite != null)
+        {
+            weaponRenderer.sprite = newData.weaponSprite;
+        }
     }
     
     void Update()
     {
+        // NEW: Stop inputs if paused
+        if (!canControl) return;
         if (isDashing) return;
         
         moveInput.x = joystick.Horizontal;
@@ -59,19 +99,21 @@ public class PlayerController : MonoBehaviour
         {
             StartCoroutine(Dash());
         }
-        if (Input.GetKey(KeyCode.LeftShift) && Time.time >= nextFireTime)
+
+        // Safety check: ensure weapon exists
+        if (currentWeapon != null && Input.GetKey(KeyCode.LeftShift) && Time.time >= nextFireTime)
         {
-            if (Time.time >= nextFireTime)
-            {
-                Shoot();
-                nextFireTime = Time.time + 1f / currentWeapon.fireRate;
-                justShotTargetFrame = true; 
-            }
+            Shoot();
+            nextFireTime = Time.time + 1f / currentWeapon.fireRate;
+            justShotTargetFrame = true; 
         }
     }
 
     void FixedUpdate()
     {
+        // NEW: Stop physics if paused
+        if (!canControl) return;
+
         if (isDashing)
         {
             rb.MovePosition(rb.position + (Vector2)transform.up * dashSpeed * Time.fixedDeltaTime);
@@ -99,6 +141,7 @@ public class PlayerController : MonoBehaviour
             float randomSpread = Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
             Quaternion finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
 
+            // Use the tag from the WeaponData (e.g., "PlayerBullet" or "ShotgunShell")
             ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
         }
         
@@ -108,6 +151,7 @@ public class PlayerController : MonoBehaviour
         if (CameraShaker.Instance != null) 
             CameraShaker.Instance.Shake(currentWeapon.shakeIntensity, 0.1f);
     }
+
     Transform GetClosestEnemyInSights()
     {
         Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, assistRange, enemyLayer);
@@ -138,12 +182,16 @@ public class PlayerController : MonoBehaviour
 
         return bestTarget;
     }
+
     IEnumerator Dash()
     {
         isDashing = true;
         justDashedTargetFrame = true;
         nextDashTime = Time.time + dashCooldown;
-        SoundManager.Instance.PlaySound(SoundType.Dash);
+        
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlaySound(SoundType.Dash);
+            
         yield return new WaitForSeconds(dashDuration);
 
         isDashing = false;
@@ -155,9 +203,7 @@ public class PlayerController : MonoBehaviour
         
         if (collision.gameObject.CompareTag("Enemy"))
         {
-            Debug.Log("Game Over: Touched Echo!");
-            if (GameManager.Instance != null) 
-                GameManager.Instance.EndLoop(false);
+            GameEvents.OnPlayerDeath?.Invoke();
         }
     }
     
@@ -167,12 +213,10 @@ public class PlayerController : MonoBehaviour
         
         if (other.CompareTag("EnemyBullet"))
         {
-            Debug.Log("Game Over: Shot by Bullet!");
-            
-            if (GameManager.Instance != null) 
-                GameManager.Instance.EndLoop(false);
-
-            Destroy(other.gameObject); 
+            Debug.Log("Event: Player Death Broadcasted");
+            GameEvents.OnPlayerDeath?.Invoke(); 
+            // Destroy(other.gameObject); // Handled by Bullet script usually
+            other.gameObject.SetActive(false); // Pooling friendly
         }
     }
     
@@ -183,6 +227,7 @@ public class PlayerController : MonoBehaviour
         nextDashTime = 0f;
         
         if(rb != null) rb.velocity = Vector2.zero;
+        moveInput = Vector2.zero;
     }
 
     void OnDrawGizmosSelected()

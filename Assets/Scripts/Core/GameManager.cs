@@ -2,14 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum GameState
-{
-    Intro,
-    Playing,
-    Rewinding,
-    GameOver
-}
-
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
@@ -34,15 +26,32 @@ public class GameManager : MonoBehaviour
     [Header("Arsenal")]
     public List<WeaponData> availableWeapons;
     
+    // DATA STORAGE
     private List<LoopData> allLoopDatas = new List<LoopData>(); 
     private List<GameObject> activeEchoes = new List<GameObject>();
     private List<Vector2> usedSpawnPositions = new List<Vector2>();
+    
     private int currentWeaponIndex = 0;
+    private Coroutine autoAdvanceCoroutine; // Reference to the timer
+
+    void Awake() 
+    { 
+        if (Instance == null) Instance = this; 
+        else Destroy(gameObject);
+    }
+
+    void OnEnable()
+    {
+        GameEvents.OnEnemyDeath += HandleEnemyDeath;
+        GameEvents.OnPlayerDeath += HandlePlayerDeath;
+    }
+
+    void OnDisable()
+    {
+        GameEvents.OnEnemyDeath -= HandleEnemyDeath;
+        GameEvents.OnPlayerDeath -= HandlePlayerDeath;
+    }
     
-    void OnEnable() { EchoController.OnEnemyKilled += HandleEnemyDeath; }
-    void OnDisable() { EchoController.OnEnemyKilled -= HandleEnemyDeath; }
-    
-    void Awake() { Instance = this; }
     void Start() { StartNewLoop(); }
     
     public void StartNewLoop()
@@ -51,48 +60,76 @@ public class GameManager : MonoBehaviour
         currentTimer = loopDuration; 
         currentState = GameState.Intro;
         
-        currentWeaponIndex = Random.Range(0, availableWeapons.Count);
-        WeaponData selectedWeapon = availableWeapons[currentWeaponIndex];
-        player.EquipWeapon(selectedWeapon);
-        
-        if (GameUI.Instance != null)
+        if (availableWeapons.Count > 0)
         {
-            GameUI.Instance.HideSummary();
-            
-            GameUI.Instance.ShowLoopStart(currentLoop, selectedWeapon.weaponName.ToUpper(), () => 
+            currentWeaponIndex = Random.Range(0, availableWeapons.Count);
+            WeaponData selectedWeapon = availableWeapons[currentWeaponIndex];
+            player.EquipWeapon(selectedWeapon); 
+
+            if (GameUI.Instance != null)
             {
-                currentState = GameState.Playing;
-                playerRecorder.StartRecording();
-            });
-            
-            GameUI.Instance.UpdateLoop(currentLoop);
-            GameUI.Instance.UpdateTimer(currentTimer);
+                GameUI.Instance.HideSummary();
+                GameUI.Instance.ShowLoopStart(currentLoop, selectedWeapon.weaponName.ToUpper(), () => 
+                {
+                    currentState = GameState.Playing;
+                    GameEvents.OnStateChanged?.Invoke(GameState.Playing);
+                    playerRecorder.StartRecording();
+                    
+                    if (SoundManager.Instance != null) 
+                        SoundManager.Instance.PlaySound(selectedWeapon.loadSound);
+                });
+                GameUI.Instance.UpdateLoop(currentLoop);
+                GameUI.Instance.UpdateTimer(currentTimer);
+            }
+        }
+        else
+        {
+            Debug.LogError("No weapons assigned in GameManager!");
         }
 
+        GameEvents.OnStateChanged?.Invoke(GameState.Intro);
+        GameEvents.OnLoopStart?.Invoke(currentLoop);
+
+        SpawnPlayer();
+        SpawnEchoes();
+    }
+    
+    // --- UI INTERACTION (RESTORED TO FIX ERROR) ---
+
+    // Called by GameUI when button is pressed
+    public void ConfirmNextLoop()
+    {
+        // If we are already rewinding, ignore clicks
+        if (currentState == GameState.Rewinding) return;
+
+        // If waiting in transition, kill the timer and start immediately
+        if (currentState == GameState.LoopTransition)
+        {
+            if (autoAdvanceCoroutine != null) StopCoroutine(autoAdvanceCoroutine);
+            StartCoroutine(RewindRoutine());
+        }
+    }
+
+    // ----------------------
+
+    private void SpawnPlayer()
+    {
         Vector2 spawnPos = GetRandomSpawnPosition();
         usedSpawnPositions.Add(spawnPos);
         player.transform.position = spawnPos;
         player.gameObject.SetActive(true);
         player.transform.rotation = Quaternion.identity; 
         player.ResetState(); 
-        
+    }
+
+    private void SpawnEchoes()
+    {
         foreach (var echo in activeEchoes) 
         {
             if (echo != null) Destroy(echo); 
         }
         activeEchoes.Clear();
-        
-        GameUI.Instance.ShowLoopStart(currentLoop, selectedWeapon.weaponName.ToUpper(), () => 
-        {
-            currentState = GameState.Playing; 
-            playerRecorder.StartRecording();
-            
-            if (SoundManager.Instance != null)
-            {
-                SoundManager.Instance.PlaySound(selectedWeapon.loadSound);
-            }
-        });
-        
+
         GameObject dummyEcho = Instantiate(echoPrefab, Vector3.zero, Quaternion.identity);
         dummyEcho.GetComponent<EchoController>().InitializeDummy(); 
         dummyEcho.tag = "Enemy"; 
@@ -104,69 +141,126 @@ public class GameManager : MonoBehaviour
             {
                 GameObject newEcho = Instantiate(echoPrefab, Vector3.zero, Quaternion.identity); 
                 EchoController echoScript = newEcho.GetComponent<EchoController>();
-                WeaponData echoWeapon = availableWeapons[data.weaponIndex];
-                echoScript.Initialize(data.frames, echoWeapon);
+                
+                if (data.weaponIndex >= 0 && data.weaponIndex < availableWeapons.Count)
+                {
+                    WeaponData echoWeapon = availableWeapons[data.weaponIndex];
+                    echoScript.Initialize(data.frames, echoWeapon);
+                }
+                else
+                {
+                    if (availableWeapons.Count > 0)
+                        echoScript.Initialize(data.frames, availableWeapons[0]);
+                }
+
                 newEcho.tag = "Enemy"; 
                 activeEchoes.Add(newEcho);
             }
         }
     }
-    
-    void HandleEnemyDeath(int points)
+
+    private void HandleEnemyDeath()
     {
         if (currentState != GameState.Playing) return;
-        currentScore += points;
+        
+        currentScore += 100;
+        
         if (GameUI.Instance != null) GameUI.Instance.UpdateScore(currentScore);
         CheckWinCondition();
     }
+
+    private void HandlePlayerDeath()
+    {
+        EndLoop(false);
+    }
     
-    public void CheckWinCondition()
+    private void CheckWinCondition()
     {
         if (currentState != GameState.Playing) return;
-        int enemyCount = GameObject.FindGameObjectsWithTag("Enemy").Length;
+
+        int enemyCount = 0;
+        foreach(var echo in activeEchoes)
+        {
+            if (echo != null && echo.CompareTag("Enemy")) enemyCount++;
+        }
+
         if (enemyCount <= 0) EndLoop(true);
     }
     
-    public void EndLoop(bool isWin)
+    private void EndLoop(bool isWin)
     {
         if (currentState != GameState.Playing) return;
+        
         playerRecorder.StopRecording();
         
         if (isWin)
         {
-            SoundManager.Instance.PlaySound(SoundType.Win);
-            SoundManager.Instance.PlaySound(SoundType.LoopRewind);
-            
-            currentState = GameState.Rewinding;
-            int timeBonus = Mathf.FloorToInt(currentTimer * 100); 
-            int totalNewScore = currentScore + timeBonus;
-
-            if (CameraShaker.Instance != null) CameraShaker.Instance.Shake(2f, 0.5f);
-            if (GameUI.Instance != null) GameUI.Instance.ShowWinSummary(currentScore, currentTimer, totalNewScore);
-
-            currentScore = totalNewScore;
-
-            LoopData newData = new LoopData(currentWeaponIndex, new List<FrameData>(playerRecorder.recordedFrames));
-            allLoopDatas.Add(newData);
-            
-            StartCoroutine(RewindRoutine());
+            HandleWin();
         }
         else
         {
-            currentState = GameState.GameOver;
-            Debug.Log("Game Over!");
-
-            // Show UI
-            if (GameUI.Instance != null) 
-            {
-                GameUI.Instance.ShowGameOver(currentScore, currentLoop);
-            }
+            HandleGameOver();
         }
+    }
+
+    private void HandleWin()
+    {
+        int baseScore = currentScore;
+        int timeBonus = Mathf.FloorToInt(currentTimer * 100); 
+        int totalNewScore = baseScore + timeBonus;
+
+        currentScore = totalNewScore;
+
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlaySound(SoundType.Win);
+
+        LoopData newData = new LoopData(currentWeaponIndex, new List<FrameData>(playerRecorder.recordedFrames));
+        allLoopDatas.Add(newData);
+
+        currentState = GameState.LoopTransition;
+        GameEvents.OnStateChanged?.Invoke(GameState.LoopTransition);
+        
+        if (GameUI.Instance != null) 
+        {
+            GameUI.Instance.ShowWinSummary(baseScore, currentTimer, totalNewScore);
+        }
+        
+        GameEvents.OnLoopCompleted?.Invoke();
+
+        // Save reference so we can stop it if player clicks Skip
+        autoAdvanceCoroutine = StartCoroutine(AutoAdvanceRoutine());
+    }
+
+    private void HandleGameOver()
+    {
+        currentState = GameState.GameOver;
+        GameEvents.OnStateChanged?.Invoke(GameState.GameOver);
+        GameEvents.OnLoopEnded?.Invoke(); 
+        
+        Debug.Log("Game Over!");
+        if (GameUI.Instance != null) 
+            GameUI.Instance.ShowGameOver(currentScore, currentLoop);
+    }
+
+    IEnumerator AutoAdvanceRoutine()
+    {
+        yield return new WaitForSeconds(3.0f);
+        StartCoroutine(RewindRoutine());
     }
 
     IEnumerator RewindRoutine()
     {
-        yield return new WaitForSeconds(3f);
+        currentState = GameState.Rewinding;
+        GameEvents.OnStateChanged?.Invoke(GameState.Rewinding);
+        GameEvents.OnLoopEnded?.Invoke(); 
+        
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlaySound(SoundType.LoopRewind);
+            
+        if (CameraShaker.Instance != null) CameraShaker.Instance.Shake(2f, 0.5f);
+
+        yield return new WaitForSeconds(1.5f);
+        
         StartNewLoop();
     }
     

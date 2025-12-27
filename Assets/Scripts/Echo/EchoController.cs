@@ -1,33 +1,45 @@
 using System.Collections.Generic;
-using System;
 using UnityEngine;
 using DG.Tweening; 
 
 public class EchoController : MonoBehaviour
 {
-    public static event Action<int> OnEnemyKilled;
-
     [Header("References")]
     public Transform firePoint;
     private WeaponData currentWeapon;
-
     private List<FrameData> framesToPlay;
     private int currentFrameIndex = 0;
     
-    [Header("State Flags")]
     private bool isDead = false; 
     private bool isStaticDummy = false;
     private bool wasDashing = false;
     
+    private bool canMove = false; 
+    
     private SpriteRenderer spriteRenderer;
     private Collider2D col;
     private Color originalColor = Color.red;
-    
+
     void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
         col = GetComponent<Collider2D>();
         originalColor = spriteRenderer.color;
+    }
+    
+    void OnEnable()
+    {
+        GameEvents.OnStateChanged += OnGameStateChanged;
+    }
+
+    void OnDisable()
+    {
+        GameEvents.OnStateChanged -= OnGameStateChanged;
+    }
+
+    private void OnGameStateChanged(GameState newState)
+    {
+        canMove = (newState == GameState.Playing);
     }
 
     public void Initialize(List<FrameData> frames, WeaponData weapon)
@@ -64,7 +76,9 @@ public class EchoController : MonoBehaviour
     void FixedUpdate()
     {
         if (isDead || isStaticDummy) return; 
-        if (GameManager.Instance.currentState != GameState.Playing) return;
+        
+        if (!canMove) return; 
+
         if (framesToPlay == null || currentFrameIndex >= framesToPlay.Count) return;
 
         FrameData data = framesToPlay[currentFrameIndex];
@@ -120,14 +134,13 @@ public class EchoController : MonoBehaviour
         isDead = true;
         
         gameObject.tag = "Untagged"; 
-        OnEnemyKilled?.Invoke(100);
+        
+        GameEvents.OnEnemyDeath?.Invoke();
         
         spriteRenderer.DOKill();
-
         spriteRenderer.color = new Color(0.3f, 0f, 0f, 1f); 
         spriteRenderer.DOFade(0.8f, 0.2f);
         spriteRenderer.sortingOrder = -1; 
-
         col.enabled = false;
     }
     

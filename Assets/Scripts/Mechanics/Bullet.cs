@@ -36,8 +36,8 @@ public class Bullet : MonoBehaviour
             if (other.CompareTag("Player"))
             {
                 Debug.Log("Game Over! Player Hit.");
-                GameManager.Instance.EndLoop(false); 
-                gameObject.SetActive(false); 
+                GameEvents.OnPlayerDeath?.Invoke();
+                gameObject.SetActive(false);
             }
         }
         else
@@ -48,7 +48,7 @@ public class Bullet : MonoBehaviour
                 if (echo != null) echo.Die();
             
                 gameObject.SetActive(false);
-                GameManager.Instance.CheckWinCondition();
+                GameEvents.OnEnemyDeath?.Invoke();
             }
         }
     }
