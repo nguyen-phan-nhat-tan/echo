@@ -7,7 +7,8 @@ public enum GameState
     Playing,
     LoopTransition,
     Rewinding,
-    GameOver
+    GameOver,
+    Paused
 }
 
 public static class GameEvents

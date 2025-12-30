@@ -1,6 +1,6 @@
 using UnityEngine;
 using System.Collections;
-using DG.Tweening; // Keeping this if you need tweening
+using DG.Tweening;
 
 public class PlayerController : MonoBehaviour
 {
@@ -8,10 +8,9 @@ public class PlayerController : MonoBehaviour
     public float moveSpeed = 5f;
     public FloatingJoystick joystick;
     public Transform firePoint;
-    // public GameObject bulletPrefab; // Unused (we use ObjectPooler)
     
     [Header("Visuals")]
-    public SpriteRenderer weaponRenderer; // Drag your Gun Sprite object here!
+    public SpriteRenderer weaponRenderer; 
 
     private Rigidbody2D rb;
     private Vector2 moveInput;
@@ -33,7 +32,7 @@ public class PlayerController : MonoBehaviour
     
     // --- STATE FLAGS ---
     [HideInInspector] public bool isDashing = false;
-    private bool canControl = true; // NEW: Pauses input during Loop Transition
+    private bool canControl = true;
     
     // --- RECORDER FLAGS ---
     [HideInInspector] public bool justShotTargetFrame = false;
@@ -45,7 +44,6 @@ public class PlayerController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
     }
 
-    // --- NEW: EVENT LISTENING (For Pausing) ---
     void OnEnable()
     {
         GameEvents.OnStateChanged += OnGameStateChanged;
@@ -58,22 +56,47 @@ public class PlayerController : MonoBehaviour
 
     private void OnGameStateChanged(GameState newState)
     {
-        // Only allow movement if the game is actually Playing
         canControl = (newState == GameState.Playing);
         
+        // FORCE RESET JOYSTICK
+        // We toggle the Component (.enabled) instead of the GameObject (.SetActive)
+        // to prevent visual flickering/layout rebuild glitches.
+        if (joystick != null)
+        {
+            joystick.enabled = canControl;
+
+            // If disabling, we also want to hide the visuals so they don't get stuck on screen
+            if (!canControl)
+            {
+                // Most Joystick packs have the background/handle as children.
+                // Resetting the RectTransform inputs is handled by OnDisable in most assets.
+                // We zero out our local input to be safe.
+                joystick.OnPointerUp(null); // Try to force internal reset if supported
+                joystick.transform.GetChild(0).gameObject.SetActive(false); // Hide Background/Handle usually child 0
+            }
+            else
+            {
+                // Re-enable visuals for next loop (Floating joystick usually handles this on touch, 
+                // but we ensure the object is ready)
+                joystick.transform.GetChild(0).gameObject.SetActive(true);
+            }
+        }
+
         if (!canControl)
         {
-            rb.velocity = Vector2.zero;
             moveInput = Vector2.zero;
+            if (rb != null)
+            {
+                rb.velocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+            }
         }
     }
-    // ------------------------------------------
     
     public void EquipWeapon(WeaponData newData)
     {
         currentWeapon = newData;
 
-        // NEW: Visual Update
         if (weaponRenderer != null && newData.weaponSprite != null)
         {
             weaponRenderer.sprite = newData.weaponSprite;
@@ -82,7 +105,6 @@ public class PlayerController : MonoBehaviour
     
     void Update()
     {
-        // NEW: Stop inputs if paused
         if (!canControl) return;
         if (isDashing) return;
         
@@ -100,7 +122,6 @@ public class PlayerController : MonoBehaviour
             StartCoroutine(Dash());
         }
 
-        // Safety check: ensure weapon exists
         if (currentWeapon != null && Input.GetKey(KeyCode.LeftShift) && Time.time >= nextFireTime)
         {
             Shoot();
@@ -111,7 +132,6 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
-        // NEW: Stop physics if paused
         if (!canControl) return;
 
         if (isDashing)
@@ -141,7 +161,6 @@ public class PlayerController : MonoBehaviour
             float randomSpread = Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
             Quaternion finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
 
-            // Use the tag from the WeaponData (e.g., "PlayerBullet" or "ShotgunShell")
             ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
         }
         
@@ -213,10 +232,8 @@ public class PlayerController : MonoBehaviour
         
         if (other.CompareTag("EnemyBullet"))
         {
-            Debug.Log("Event: Player Death Broadcasted");
             GameEvents.OnPlayerDeath?.Invoke(); 
-            // Destroy(other.gameObject); // Handled by Bullet script usually
-            other.gameObject.SetActive(false); // Pooling friendly
+            other.gameObject.SetActive(false); 
         }
     }
     
@@ -226,7 +243,11 @@ public class PlayerController : MonoBehaviour
         justDashedTargetFrame = false;
         nextDashTime = 0f;
         
-        if(rb != null) rb.velocity = Vector2.zero;
+        if(rb != null)
+        {
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+        } 
         moveInput = Vector2.zero;
     }
 

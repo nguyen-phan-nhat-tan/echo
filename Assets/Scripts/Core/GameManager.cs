@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -32,7 +33,7 @@ public class GameManager : MonoBehaviour
     private List<Vector2> usedSpawnPositions = new List<Vector2>();
     
     private int currentWeaponIndex = 0;
-    private Coroutine autoAdvanceCoroutine; // Reference to the timer
+    private Coroutine autoAdvanceCoroutine;
 
     void Awake() 
     { 
@@ -53,9 +54,40 @@ public class GameManager : MonoBehaviour
     }
     
     void Start() { StartNewLoop(); }
+
+    // --- NEW METHODS CAUSING THE ERROR (Make sure these are present!) ---
     
+    public void TogglePause()
+    {
+        // 1. If Playing -> Pause
+        if (currentState == GameState.Playing)
+        {
+            currentState = GameState.Paused;
+            Time.timeScale = 0f; 
+            Debug.Log("Game PAUSED. TimeScale is now: " + Time.timeScale);
+            GameEvents.OnStateChanged?.Invoke(GameState.Paused);
+        }
+        // 2. If Paused -> Resume
+        else if (currentState == GameState.Paused)
+        {
+            currentState = GameState.Playing;
+            Time.timeScale = 1f; 
+            Debug.Log("Game RESUMED. TimeScale is now: " + Time.timeScale);
+            GameEvents.OnStateChanged?.Invoke(GameState.Playing);
+        }
+    }
+
+    public void ReturnToMenu()
+    {
+        Time.timeScale = 1f; // Always reset time before loading scenes
+        SceneManager.LoadScene("MainMenu");
+    }
+    
+    // -------------------------------------------------------------------
+
     public void StartNewLoop()
     {
+        Time.timeScale = 1f; 
         currentLoop++;
         currentTimer = loopDuration; 
         currentState = GameState.Intro;
@@ -94,23 +126,16 @@ public class GameManager : MonoBehaviour
         SpawnEchoes();
     }
     
-    // --- UI INTERACTION (RESTORED TO FIX ERROR) ---
-
-    // Called by GameUI when button is pressed
     public void ConfirmNextLoop()
     {
-        // If we are already rewinding, ignore clicks
         if (currentState == GameState.Rewinding) return;
 
-        // If waiting in transition, kill the timer and start immediately
         if (currentState == GameState.LoopTransition)
         {
             if (autoAdvanceCoroutine != null) StopCoroutine(autoAdvanceCoroutine);
             StartCoroutine(RewindRoutine());
         }
     }
-
-    // ----------------------
 
     private void SpawnPlayer()
     {
@@ -227,7 +252,6 @@ public class GameManager : MonoBehaviour
         
         GameEvents.OnLoopCompleted?.Invoke();
 
-        // Save reference so we can stop it if player clicks Skip
         autoAdvanceCoroutine = StartCoroutine(AutoAdvanceRoutine());
     }
 
@@ -238,8 +262,20 @@ public class GameManager : MonoBehaviour
         GameEvents.OnLoopEnded?.Invoke(); 
         
         Debug.Log("Game Over!");
+
+        int savedHighScore = PlayerPrefs.GetInt("HighScore", 0);
+        bool isNewRecord = false;
+
+        if (currentScore > savedHighScore)
+        {
+            savedHighScore = currentScore;
+            PlayerPrefs.SetInt("HighScore", savedHighScore);
+            PlayerPrefs.Save();
+            isNewRecord = true;
+        }
+
         if (GameUI.Instance != null) 
-            GameUI.Instance.ShowGameOver(currentScore, currentLoop);
+            GameUI.Instance.ShowGameOver(currentScore, currentLoop, savedHighScore, isNewRecord);
     }
 
     IEnumerator AutoAdvanceRoutine()
@@ -264,10 +300,15 @@ public class GameManager : MonoBehaviour
         StartNewLoop();
     }
     
-    void Update() {
-        if (currentState == GameState.Playing && currentTimer > 0 && player.gameObject.activeSelf)
+    void Update() 
+    {
+        // STRICT GUARD: If not playing, STOP ALL LOGIC.
+        if (currentState != GameState.Playing) return;
+
+        if (currentTimer > 0 && player.gameObject.activeSelf)
         {
-            currentTimer -= Time.deltaTime;
+            currentTimer -= Time.deltaTime; 
+            
             if (GameUI.Instance != null) GameUI.Instance.UpdateTimer(currentTimer);
             if (currentTimer <= 0)
             {
