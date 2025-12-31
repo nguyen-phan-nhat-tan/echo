@@ -13,7 +13,6 @@ public enum GameState
 
 public static class GameEvents
 {
-    // Existing Events (Kept)
     public static Action OnPlayerDeath;
     public static Action OnEnemyDeath;
     
@@ -27,4 +26,9 @@ public static class GameEvents
     public static Action<int> OnScoreChanged;
     public static Action<float> OnTimerUpdate;
     public static Action<WeaponData> OnWeaponChange; 
+    
+    // VFX Events
+    public static Action<Vector2, Quaternion> OnBulletImpact; 
+    public static Action<Vector2> OnEnemyExplosion;
+    public static Action OnPlayerHit;
 }

@@ -134,12 +134,14 @@ public class EchoController : MonoBehaviour
         isDead = true;
         
         gameObject.tag = "Untagged"; 
-        
+
         GameEvents.OnEnemyDeath?.Invoke();
+        GameEvents.OnEnemyExplosion?.Invoke(transform.position);
         
+        if (CameraShaker.Instance != null) CameraShaker.Instance.Shake(5f, 0.2f);
         spriteRenderer.DOKill();
         spriteRenderer.color = new Color(0.3f, 0f, 0f, 1f); 
-        spriteRenderer.DOFade(0.8f, 0.2f);
+        spriteRenderer.DOFade(0f, 0.2f);
         spriteRenderer.sortingOrder = -1; 
         col.enabled = false;
     }

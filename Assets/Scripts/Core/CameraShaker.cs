@@ -4,32 +4,30 @@ using DG.Tweening;
 public class CameraShaker : MonoBehaviour
 {
     public static CameraShaker Instance;
-    
-    public float shootShakeStr = 0.2f;
-    public float hitShakeStr = 1f;
-    public float duration = 0.1f;
+
+    private Transform camTransform;
+    private Vector3 initialPos;
 
     void Awake()
     {
-        Instance = this;
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+
+        camTransform = GetComponent<Transform>();
+        initialPos = camTransform.localPosition;
     }
 
-    public void Shake(float strength, float duration)
+    public void Shake(float intensity, float duration)
     {
-        transform.DOKill(); 
+        // 1. Kill any existing shake to prevent conflicts
+        camTransform.DOKill();
 
-        transform.localPosition = new Vector3(0, 0, -10); 
-        
-        transform.DOShakePosition(duration, strength, 20, 90f);
-    }
+        // 2. Reset to initial position (clean slate)
+        camTransform.localPosition = initialPos;
 
-    public void ShakeShoot()
-    {
-        Shake(shootShakeStr, duration);
-    }
-
-    public void ShakeImpact()
-    {
-        Shake(hitShakeStr, 0.2f);
+        // 3. Start Shake
+        // .SetLink(gameObject) is the Fix: It tells DOTween "If this Camera dies, stop shaking immediately."
+        camTransform.DOShakePosition(duration, intensity, 20, 90, false, true)
+            .SetLink(gameObject); 
     }
 }

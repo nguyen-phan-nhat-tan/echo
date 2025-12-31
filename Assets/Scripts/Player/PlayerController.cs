@@ -1,12 +1,19 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.InputSystem; // NEW NAMESPACE
 using DG.Tweening;
 
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement")]
     public float moveSpeed = 5f;
-    public FloatingJoystick joystick;
+    
+    // NEW: Input System References
+    // Drag the specific actions from your "Controls.inputactions" asset here in the Inspector
+    public InputActionReference moveAction; 
+    public InputActionReference dashAction;
+    public InputActionReference fireAction; 
+
     public Transform firePoint;
     
     [Header("Visuals")]
@@ -44,50 +51,41 @@ public class PlayerController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
     }
 
+    // --- NEW: INPUT ENABLING ---
     void OnEnable()
     {
         GameEvents.OnStateChanged += OnGameStateChanged;
+        
+        // Enable Inputs
+        if(moveAction != null) moveAction.action.Enable();
+        if(dashAction != null) dashAction.action.Enable();
+        if(fireAction != null) fireAction.action.Enable();
     }
 
     void OnDisable()
     {
         GameEvents.OnStateChanged -= OnGameStateChanged;
+        
+        // Disable Inputs
+        if(moveAction != null) moveAction.action.Disable();
+        if(dashAction != null) dashAction.action.Disable();
+        if(fireAction != null) fireAction.action.Disable();
     }
+    // ---------------------------
 
     private void OnGameStateChanged(GameState newState)
     {
         canControl = (newState == GameState.Playing);
         
-        // FORCE RESET JOYSTICK
-        // We toggle the Component (.enabled) instead of the GameObject (.SetActive)
-        // to prevent visual flickering/layout rebuild glitches.
-        if (joystick != null)
-        {
-            joystick.enabled = canControl;
-
-            // If disabling, we also want to hide the visuals so they don't get stuck on screen
-            if (!canControl)
-            {
-                // Most Joystick packs have the background/handle as children.
-                // Resetting the RectTransform inputs is handled by OnDisable in most assets.
-                // We zero out our local input to be safe.
-                joystick.OnPointerUp(null); // Try to force internal reset if supported
-                joystick.transform.GetChild(0).gameObject.SetActive(false); // Hide Background/Handle usually child 0
-            }
-            else
-            {
-                // Re-enable visuals for next loop (Floating joystick usually handles this on touch, 
-                // but we ensure the object is ready)
-                joystick.transform.GetChild(0).gameObject.SetActive(true);
-            }
-        }
-
+        // Note: We don't need to "Force Stop" the joystick script anymore
+        // The Input System stops sending values automatically if we ignore them.
+        
         if (!canControl)
         {
             moveInput = Vector2.zero;
             if (rb != null)
             {
-                rb.velocity = Vector2.zero;
+                rb.linearVelocity = Vector2.zero;
                 rb.angularVelocity = 0f;
             }
         }
@@ -108,21 +106,26 @@ public class PlayerController : MonoBehaviour
         if (!canControl) return;
         if (isDashing) return;
         
-        moveInput.x = joystick.Horizontal;
-        moveInput.y = joystick.Vertical;
+        // NEW: Read Input System Values
+        if (moveAction != null)
+            moveInput = moveAction.action.ReadValue<Vector2>();
         
+        // Rotation Logic (Same as before)
         if (moveInput != Vector2.zero)
         {
             rotationAngle = Mathf.Atan2(moveInput.y, moveInput.x) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.Euler(0f, 0f, rotationAngle - 90f);
         }
     
-        if (Input.GetKeyDown(KeyCode.Space) && Time.time >= nextDashTime)
+        // NEW: Check Dash Action
+        if (dashAction != null && dashAction.action.WasPressedThisFrame() && Time.time >= nextDashTime)
         {
             StartCoroutine(Dash());
         }
 
-        if (currentWeapon != null && Input.GetKey(KeyCode.LeftShift) && Time.time >= nextFireTime)
+        // NEW: Check Fire Action (Holding down)
+        // Note: For "Auto Fire", we check IsPressed()
+        if (currentWeapon != null && fireAction != null && fireAction.action.IsPressed() && Time.time >= nextFireTime)
         {
             Shoot();
             nextFireTime = Time.time + 1f / currentWeapon.fireRate;
@@ -245,7 +248,7 @@ public class PlayerController : MonoBehaviour
         
         if(rb != null)
         {
-            rb.velocity = Vector2.zero;
+            rb.linearVelocity = Vector2.zero;
             rb.angularVelocity = 0f;
         } 
         moveInput = Vector2.zero;
