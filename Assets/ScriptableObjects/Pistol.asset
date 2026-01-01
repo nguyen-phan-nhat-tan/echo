@@ -13,10 +13,12 @@ MonoBehaviour:
   m_Name: Pistol
   m_EditorClassIdentifier: 
   weaponName: Pistol
+  weaponSprite: {fileID: 0}
   fireRate: 5
   bulletCount: 1
   spreadAngle: 2
+  damage: 1
+  bulletSpeed: 10
   bulletTag: PlayerBullet
   shakeIntensity: 0.2
-  shootSound: 0
-  loadSound: 1
+  shootClip: {fileID: 8300000, guid: 08f78eba48bb21c44ac5a74ca84efc83, type: 3}

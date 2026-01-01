@@ -94,8 +94,8 @@ public class EchoController : MonoBehaviour
         if (data.isShooting && !data.isDashing) 
         {
             FireBullet();
-            if (SoundManager.Instance != null && currentWeapon != null)
-                SoundManager.Instance.PlaySound(currentWeapon.shootSound);
+            // Note: Sounds are handled by FeedbackManager via Events now if desired,
+            // or we can add a specific "OnEnemyShoot" event later.
         }
 
         currentFrameIndex++;
@@ -124,7 +124,7 @@ public class EchoController : MonoBehaviour
             float randomSpread = UnityEngine.Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
             Quaternion finalRotation = firePoint.rotation * Quaternion.Euler(0, 0, randomSpread);
             
-            ObjectPooler.Instance.SpawnFromPool("EnemyBullet", firePoint.position, finalRotation);
+            ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
         }
     }
     
@@ -134,14 +134,15 @@ public class EchoController : MonoBehaviour
         isDead = true;
         
         gameObject.tag = "Untagged"; 
-
-        GameEvents.OnEnemyDeath?.Invoke();
-        GameEvents.OnEnemyExplosion?.Invoke(transform.position);
         
-        if (CameraShaker.Instance != null) CameraShaker.Instance.Shake(5f, 0.2f);
+        // --- FIXED: Event Only (FeedbackManager handles Shake/Sound) ---
+        GameEvents.OnEnemyDeath?.Invoke();
+        GameEvents.OnEnemyExplosion?.Invoke(transform.position); 
+        // ---------------------------------------------------------------
+        
         spriteRenderer.DOKill();
         spriteRenderer.color = new Color(0.3f, 0f, 0f, 1f); 
-        spriteRenderer.DOFade(0f, 0.2f);
+        spriteRenderer.DOFade(0.8f, 0.2f);
         spriteRenderer.sortingOrder = -1; 
         col.enabled = false;
     }

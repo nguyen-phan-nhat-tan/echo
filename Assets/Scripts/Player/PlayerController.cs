@@ -1,19 +1,15 @@
 using UnityEngine;
 using System.Collections;
-using UnityEngine.InputSystem; // NEW NAMESPACE
+using UnityEngine.InputSystem;
 using DG.Tweening;
 
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement")]
     public float moveSpeed = 5f;
-    
-    // NEW: Input System References
-    // Drag the specific actions from your "Controls.inputactions" asset here in the Inspector
     public InputActionReference moveAction; 
     public InputActionReference dashAction;
     public InputActionReference fireAction; 
-
     public Transform firePoint;
     
     [Header("Visuals")]
@@ -37,11 +33,11 @@ public class PlayerController : MonoBehaviour
     public float assistAngle = 45f;
     public LayerMask enemyLayer;
     
-    // --- STATE FLAGS ---
+    // State Flags
     [HideInInspector] public bool isDashing = false;
     private bool canControl = true;
     
-    // --- RECORDER FLAGS ---
+    // Recorder Flags
     [HideInInspector] public bool justShotTargetFrame = false;
     [HideInInspector] public bool justDashedTargetFrame = false;
     [HideInInspector] public float rotationAngle;
@@ -51,12 +47,9 @@ public class PlayerController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
     }
 
-    // --- NEW: INPUT ENABLING ---
     void OnEnable()
     {
         GameEvents.OnStateChanged += OnGameStateChanged;
-        
-        // Enable Inputs
         if(moveAction != null) moveAction.action.Enable();
         if(dashAction != null) dashAction.action.Enable();
         if(fireAction != null) fireAction.action.Enable();
@@ -65,21 +58,14 @@ public class PlayerController : MonoBehaviour
     void OnDisable()
     {
         GameEvents.OnStateChanged -= OnGameStateChanged;
-        
-        // Disable Inputs
         if(moveAction != null) moveAction.action.Disable();
         if(dashAction != null) dashAction.action.Disable();
         if(fireAction != null) fireAction.action.Disable();
     }
-    // ---------------------------
 
     private void OnGameStateChanged(GameState newState)
     {
         canControl = (newState == GameState.Playing);
-        
-        // Note: We don't need to "Force Stop" the joystick script anymore
-        // The Input System stops sending values automatically if we ignore them.
-        
         if (!canControl)
         {
             moveInput = Vector2.zero;
@@ -94,7 +80,6 @@ public class PlayerController : MonoBehaviour
     public void EquipWeapon(WeaponData newData)
     {
         currentWeapon = newData;
-
         if (weaponRenderer != null && newData.weaponSprite != null)
         {
             weaponRenderer.sprite = newData.weaponSprite;
@@ -106,25 +91,20 @@ public class PlayerController : MonoBehaviour
         if (!canControl) return;
         if (isDashing) return;
         
-        // NEW: Read Input System Values
         if (moveAction != null)
             moveInput = moveAction.action.ReadValue<Vector2>();
         
-        // Rotation Logic (Same as before)
         if (moveInput != Vector2.zero)
         {
             rotationAngle = Mathf.Atan2(moveInput.y, moveInput.x) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.Euler(0f, 0f, rotationAngle - 90f);
         }
     
-        // NEW: Check Dash Action
         if (dashAction != null && dashAction.action.WasPressedThisFrame() && Time.time >= nextDashTime)
         {
             StartCoroutine(Dash());
         }
 
-        // NEW: Check Fire Action (Holding down)
-        // Note: For "Auto Fire", we check IsPressed()
         if (currentWeapon != null && fireAction != null && fireAction.action.IsPressed() && Time.time >= nextFireTime)
         {
             Shoot();
@@ -167,33 +147,29 @@ public class PlayerController : MonoBehaviour
             ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
         }
         
-        if (SoundManager.Instance != null)
-            SoundManager.Instance.PlaySound(currentWeapon.shootSound);
-        
-        if (CameraShaker.Instance != null) 
-            CameraShaker.Instance.Shake(currentWeapon.shakeIntensity, 0.1f);
+        // --- UPDATED: Use Event instead of direct Managers ---
+        if (currentWeapon != null && currentWeapon.shootClip != null)
+        {
+            GameEvents.OnPlayerShoot?.Invoke(currentWeapon.shootClip);
+        }
+        // ----------------------------------------------------
     }
 
     Transform GetClosestEnemyInSights()
     {
         Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, assistRange, enemyLayer);
-        
         Transform bestTarget = null;
         float closestDistance = Mathf.Infinity;
 
         foreach (Collider2D hit in hits)
         {
             if (!hit.CompareTag("Enemy")) continue;
-
             Vector2 directionToEnemy = (hit.transform.position - transform.position).normalized;
-            
             if (moveInput != Vector2.zero)
             {
                 float angleToEnemy = Vector2.Angle(moveInput, directionToEnemy);
-                
                 if (angleToEnemy > assistAngle / 2) continue;
             }
-            
             float distance = Vector2.Distance(transform.position, hit.transform.position);
             if (distance < closestDistance)
             {
@@ -201,7 +177,6 @@ public class PlayerController : MonoBehaviour
                 bestTarget = hit.transform;
             }
         }
-
         return bestTarget;
     }
 
@@ -211,18 +186,17 @@ public class PlayerController : MonoBehaviour
         justDashedTargetFrame = true;
         nextDashTime = Time.time + dashCooldown;
         
-        if (SoundManager.Instance != null)
-            SoundManager.Instance.PlaySound(SoundType.Dash);
+        // --- UPDATED: Use Event ---
+        GameEvents.OnPlayerDash?.Invoke();
+        // --------------------------
             
         yield return new WaitForSeconds(dashDuration);
-
         isDashing = false;
     }
 
     void OnCollisionEnter2D(Collision2D collision)
     {
         if (isDashing) return;
-        
         if (collision.gameObject.CompareTag("Enemy"))
         {
             GameEvents.OnPlayerDeath?.Invoke();
@@ -232,7 +206,6 @@ public class PlayerController : MonoBehaviour
     void OnTriggerEnter2D(Collider2D other)
     {
         if (isDashing) return;
-        
         if (other.CompareTag("EnemyBullet"))
         {
             GameEvents.OnPlayerDeath?.Invoke(); 
@@ -245,7 +218,6 @@ public class PlayerController : MonoBehaviour
         isDashing = false;
         justDashedTargetFrame = false;
         nextDashTime = 0f;
-        
         if(rb != null)
         {
             rb.linearVelocity = Vector2.zero;
@@ -258,13 +230,11 @@ public class PlayerController : MonoBehaviour
     {
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, assistRange);
-
         if (moveInput != Vector2.zero)
         {
             Vector3 forward = new Vector3(moveInput.x, moveInput.y, 0).normalized;
             Vector3 leftBoundary = Quaternion.Euler(0, 0, assistAngle / 2) * forward * assistRange;
             Vector3 rightBoundary = Quaternion.Euler(0, 0, -assistAngle / 2) * forward * assistRange;
-
             Gizmos.color = Color.red;
             Gizmos.DrawLine(transform.position, transform.position + leftBoundary);
             Gizmos.DrawLine(transform.position, transform.position + rightBoundary);

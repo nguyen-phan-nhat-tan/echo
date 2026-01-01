@@ -55,36 +55,29 @@ public class GameManager : MonoBehaviour
     
     void Start() { StartNewLoop(); }
 
-    // --- NEW METHODS CAUSING THE ERROR (Make sure these are present!) ---
-    
+    // --- PAUSE LOGIC ---
     public void TogglePause()
     {
-        // 1. If Playing -> Pause
         if (currentState == GameState.Playing)
         {
             currentState = GameState.Paused;
             Time.timeScale = 0f; 
-            Debug.Log("Game PAUSED. TimeScale is now: " + Time.timeScale);
             GameEvents.OnStateChanged?.Invoke(GameState.Paused);
         }
-        // 2. If Paused -> Resume
         else if (currentState == GameState.Paused)
         {
             currentState = GameState.Playing;
             Time.timeScale = 1f; 
-            Debug.Log("Game RESUMED. TimeScale is now: " + Time.timeScale);
             GameEvents.OnStateChanged?.Invoke(GameState.Playing);
         }
     }
 
     public void ReturnToMenu()
     {
-        Time.timeScale = 1f; // Always reset time before loading scenes
+        Time.timeScale = 1f; 
         SceneManager.LoadScene("MainMenu");
     }
     
-    // -------------------------------------------------------------------
-
     public void StartNewLoop()
     {
         Time.timeScale = 1f; 
@@ -107,8 +100,8 @@ public class GameManager : MonoBehaviour
                     GameEvents.OnStateChanged?.Invoke(GameState.Playing);
                     playerRecorder.StartRecording();
                     
-                    if (SoundManager.Instance != null) 
-                        SoundManager.Instance.PlaySound(selectedWeapon.loadSound);
+                    // AUDIO NOTE: We removed SoundManager call here. 
+                    // If you want a "Load Weapon" sound, add GameEvents.OnLoopStart listener in FeedbackManager.
                 });
                 GameUI.Instance.UpdateLoop(currentLoop);
                 GameUI.Instance.UpdateTimer(currentTimer);
@@ -233,11 +226,10 @@ public class GameManager : MonoBehaviour
         int baseScore = currentScore;
         int timeBonus = Mathf.FloorToInt(currentTimer * 100); 
         int totalNewScore = baseScore + timeBonus;
-
         currentScore = totalNewScore;
 
-        if (SoundManager.Instance != null)
-            SoundManager.Instance.PlaySound(SoundType.Win);
+        // FIXED: Removed SoundManager call. 
+        // Logic: We fire OnLoopCompleted below, FeedbackManager plays the "Win" sound.
 
         LoopData newData = new LoopData(currentWeaponIndex, new List<FrameData>(playerRecorder.recordedFrames));
         allLoopDatas.Add(newData);
@@ -250,7 +242,7 @@ public class GameManager : MonoBehaviour
             GameUI.Instance.ShowWinSummary(baseScore, currentTimer, totalNewScore);
         }
         
-        GameEvents.OnLoopCompleted?.Invoke();
+        GameEvents.OnLoopCompleted?.Invoke(); // FeedbackManager listens to this
 
         autoAdvanceCoroutine = StartCoroutine(AutoAdvanceRoutine());
     }
@@ -259,13 +251,11 @@ public class GameManager : MonoBehaviour
     {
         currentState = GameState.GameOver;
         GameEvents.OnStateChanged?.Invoke(GameState.GameOver);
+        GameEvents.OnPlayerDeath?.Invoke(); // FeedbackManager listens to this
         GameEvents.OnLoopEnded?.Invoke(); 
         
-        Debug.Log("Game Over!");
-
         int savedHighScore = PlayerPrefs.GetInt("HighScore", 0);
         bool isNewRecord = false;
-
         if (currentScore > savedHighScore)
         {
             savedHighScore = currentScore;
@@ -290,29 +280,20 @@ public class GameManager : MonoBehaviour
         GameEvents.OnStateChanged?.Invoke(GameState.Rewinding);
         GameEvents.OnLoopEnded?.Invoke(); 
         
-        if (SoundManager.Instance != null)
-            SoundManager.Instance.PlaySound(SoundType.LoopRewind);
-            
-        if (CameraShaker.Instance != null) CameraShaker.Instance.Shake(2f, 0.5f);
-
         yield return new WaitForSeconds(1.5f);
-        
         StartNewLoop();
     }
     
     void Update() 
     {
-        // STRICT GUARD: If not playing, STOP ALL LOGIC.
         if (currentState != GameState.Playing) return;
 
         if (currentTimer > 0 && player.gameObject.activeSelf)
         {
             currentTimer -= Time.deltaTime; 
-            
             if (GameUI.Instance != null) GameUI.Instance.UpdateTimer(currentTimer);
             if (currentTimer <= 0)
             {
-                Debug.Log("Time's Up!");
                 EndLoop(false); 
             }
         }

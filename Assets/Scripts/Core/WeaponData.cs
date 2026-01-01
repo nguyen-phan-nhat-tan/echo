@@ -20,6 +20,5 @@ public class WeaponData : ScriptableObject
     public float shakeIntensity = 0.2f;
     
     [Header("Audio")]
-    public SoundType shootSound;
-    public SoundType loadSound;
+    public AudioClip shootClip;
 }
