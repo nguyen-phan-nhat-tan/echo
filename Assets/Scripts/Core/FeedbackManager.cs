@@ -19,6 +19,8 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnEnemyDeath += OnEnemyDeath;
         GameEvents.OnLoopCompleted += OnLoopCompleted;
         GameEvents.OnPlayerDeath += OnPlayerDeath;
+        GameEvents.OnBulletImpact += OnBulletImpact;
+        GameEvents.OnEnemyExplosion += OnEnemyExplosion;
     }
 
     void OnDisable()
@@ -28,6 +30,8 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnEnemyDeath -= OnEnemyDeath;
         GameEvents.OnLoopCompleted -= OnLoopCompleted;
         GameEvents.OnPlayerDeath -= OnPlayerDeath;
+        GameEvents.OnBulletImpact -= OnBulletImpact;
+        GameEvents.OnEnemyExplosion -= OnEnemyExplosion;
     }
 
     // --- UPDATED HANDLER ---
@@ -74,5 +78,24 @@ public class FeedbackManager : MonoBehaviour
     private void OnPlayerDeath()
     {
         if (gameOverFeedback != null) gameOverFeedback.PlayFeedbacks();
+    }
+
+    // --- NEW: Grid Ripple Handlers ---
+    private void OnBulletImpact(Vector2 pos, Quaternion rot)
+    {
+        // Wall Hit Ripple
+        if (ReactiveGrid.Instance != null)
+        {
+            ReactiveGrid.Instance.ApplyForce(pos, 2f, 2f, Color.white, true);
+        }
+    }
+
+    private void OnEnemyExplosion(Vector2 pos)
+    {
+        // Enemy Hit/Death Ripple
+        if (ReactiveGrid.Instance != null)
+        {
+            ReactiveGrid.Instance.ApplyForce(pos, 5f, 3f, Color.red, true);
+        }
     }
 }

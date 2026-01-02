@@ -79,7 +79,15 @@ public class EchoController : MonoBehaviour
         
         if (!canMove) return; 
 
-        if (framesToPlay == null || currentFrameIndex >= framesToPlay.Count) return;
+        if (framesToPlay == null) return;
+        
+        // Loop or clamp? If we want them to stay alive, we clamp.
+        if (currentFrameIndex >= framesToPlay.Count)
+        {
+            currentFrameIndex = framesToPlay.Count - 1;
+        }
+
+        if (currentFrameIndex < 0) return;
 
         FrameData data = framesToPlay[currentFrameIndex];
 
@@ -124,7 +132,19 @@ public class EchoController : MonoBehaviour
             float randomSpread = UnityEngine.Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
             Quaternion finalRotation = firePoint.rotation * Quaternion.Euler(0, 0, randomSpread);
             
-            ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
+            // Spawn the bullet (using PlayerBullet prefab usually)
+            GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
+            
+            // Convert it to an "Enemy Bullet" so it doesn't hurt other Echoes (which are Tagged Enemy)
+            if (bulletObj != null)
+            {
+                bulletObj.tag = "EnemyBullet"; // Ensure physics layer ignores other enemies
+                Bullet bulletScript = bulletObj.GetComponent<Bullet>();
+                if (bulletScript != null)
+                {
+                    bulletScript.isEnemyBullet = true;
+                }
+            }
         }
     }
     

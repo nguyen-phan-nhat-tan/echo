@@ -37,6 +37,8 @@ public class Bullet : MonoBehaviour
             Quaternion impactRot = transform.rotation * Quaternion.Euler(0, 0, 180);
             GameEvents.OnBulletImpact?.Invoke(transform.position, impactRot);
             
+            // GRID RIPPLE: Handled by FeedbackManager now via OnBulletImpact
+
             Disable();
             return;
         }
@@ -49,9 +51,6 @@ public class Bullet : MonoBehaviour
                 Debug.Log("Player Hit!");
                 GameEvents.OnPlayerDeath?.Invoke();
                 
-                // Optional: Spawn blood/hit VFX on player
-                // GameEvents.OnPlayerHit?.Invoke(transform.position);
-                
                 Disable();
             }
         }
@@ -60,6 +59,8 @@ public class Bullet : MonoBehaviour
         {
             if (other.CompareTag("Enemy"))
             {
+                // GRID RIPPLE: Handled by FeedbackManager now via OnEnemyExplosion (triggered by Die)
+
                 EchoController echo = other.GetComponent<EchoController>();
                 if (echo != null) 
                 {

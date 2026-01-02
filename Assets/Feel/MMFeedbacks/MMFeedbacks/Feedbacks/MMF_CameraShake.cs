@@ -14,6 +14,7 @@ namespace MoreMountains.Feedbacks
 	              "Note that although this event and system was built for cameras in mind, you could technically use it to shake other objects as well.")]
 	[FeedbackPath("Camera/Camera Shake")]
 	[MovedFrom(false, null, "MoreMountains.Feedbacks")]
+	[Serializable]
 	public class MMF_CameraShake : MMF_Feedback
 	{
 		/// a static bool used to disable all feedbacks of this type at once

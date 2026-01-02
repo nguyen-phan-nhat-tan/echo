@@ -18,6 +18,7 @@ namespace MoreMountains.FeedbacksForThirdParty
 	[FeedbackPath("PostProcess/Chromatic Aberration URP")]
 	#endif
 	[MovedFrom(false, null, "MoreMountains.Feedbacks.URP")]
+	[Serializable]
 	public class MMF_ChromaticAberration_URP : MMF_Feedback
 	{
 		/// a static bool used to disable all feedbacks of this type at once
