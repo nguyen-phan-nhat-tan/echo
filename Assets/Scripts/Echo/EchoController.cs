@@ -70,7 +70,7 @@ public class EchoController : MonoBehaviour
         col.enabled = true;               
         tag = "Enemy";                    
         transform.localScale = Vector3.zero;
-        transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack);
+        transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetLink(gameObject);
     }
 
     void FixedUpdate()
@@ -81,10 +81,11 @@ public class EchoController : MonoBehaviour
 
         if (framesToPlay == null) return;
         
-        // Loop or clamp? If we want them to stay alive, we clamp.
+        // Fix: Stop playing if we run out of frames. 
+        // Do NOT clamp to last frame, or it will repeat the last action (shooting) forever.
         if (currentFrameIndex >= framesToPlay.Count)
         {
-            currentFrameIndex = framesToPlay.Count - 1;
+            return;
         }
 
         if (currentFrameIndex < 0) return;

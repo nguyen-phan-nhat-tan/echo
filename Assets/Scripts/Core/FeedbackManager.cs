@@ -11,6 +11,7 @@ public class FeedbackManager : MonoBehaviour
     public MMF_Player enemyDeathFeedback; 
     public MMF_Player loopWinFeedback;     
     public MMF_Player gameOverFeedback;    
+    public MMF_Player newLoopFeedback; // NEW
 
     void OnEnable()
     {
@@ -18,6 +19,7 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnPlayerDash += OnPlayerDash;
         GameEvents.OnEnemyDeath += OnEnemyDeath;
         GameEvents.OnLoopCompleted += OnLoopCompleted;
+        GameEvents.OnLoopStart += OnLoopStart; // NEW
         GameEvents.OnPlayerDeath += OnPlayerDeath;
         GameEvents.OnBulletImpact += OnBulletImpact;
         GameEvents.OnEnemyExplosion += OnEnemyExplosion;
@@ -29,6 +31,7 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnPlayerDash -= OnPlayerDash;
         GameEvents.OnEnemyDeath -= OnEnemyDeath;
         GameEvents.OnLoopCompleted -= OnLoopCompleted;
+        GameEvents.OnLoopStart -= OnLoopStart; // NEW
         GameEvents.OnPlayerDeath -= OnPlayerDeath;
         GameEvents.OnBulletImpact -= OnBulletImpact;
         GameEvents.OnEnemyExplosion -= OnEnemyExplosion;
@@ -78,6 +81,11 @@ public class FeedbackManager : MonoBehaviour
     private void OnPlayerDeath()
     {
         if (gameOverFeedback != null) gameOverFeedback.PlayFeedbacks();
+    }
+
+    private void OnLoopStart(int loopCount) // NEW
+    {
+        if (newLoopFeedback != null) newLoopFeedback.PlayFeedbacks();
     }
 
     // --- NEW: Grid Ripple Handlers ---

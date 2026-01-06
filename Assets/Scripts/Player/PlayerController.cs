@@ -24,7 +24,7 @@ public class PlayerController : MonoBehaviour
     
     [Header("Dash Settings")]
     public float dashSpeed = 15f;
-    public float dashDuration = 0.2f;
+    public float dashDuration = 0.5f; // UPDATED: 0.5s
     public float dashCooldown = 1f;
     private float nextDashTime = 0f;
     
@@ -32,6 +32,10 @@ public class PlayerController : MonoBehaviour
     public float assistRange = 5f;
     public float assistAngle = 45f;
     public LayerMask enemyLayer;
+    public LayerMask obstacleLayer; // NEW: To prevent shooting walls
+    
+    // Optimization: Pre-allocate array to avoid Garbage Collection
+    private Collider2D[] hitBuffer = new Collider2D[20]; 
     
     // State Flags
     [HideInInspector] public bool isDashing = false;
@@ -42,9 +46,12 @@ public class PlayerController : MonoBehaviour
     [HideInInspector] public bool justDashedTargetFrame = false;
     [HideInInspector] public float rotationAngle;
 
+    private Collider2D col; // NEW
+
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        col = GetComponent<Collider2D>(); // NEW
     }
 
     void OnEnable()
@@ -86,6 +93,10 @@ public class PlayerController : MonoBehaviour
         }
     }
     
+    // Virtual Input (Mobile)
+    [HideInInspector] public bool virtualFire = false;
+    [HideInInspector] public bool virtualDash = false;
+
     void Update()
     {
         if (!canControl) return;
@@ -100,12 +111,18 @@ public class PlayerController : MonoBehaviour
             transform.rotation = Quaternion.Euler(0f, 0f, rotationAngle - 90f);
         }
     
-        if (dashAction != null && dashAction.action.WasPressedThisFrame() && Time.time >= nextDashTime)
+        // Dash Check (Input System OR Virtual Button)
+        bool dashInput = (dashAction != null && dashAction.action.WasPressedThisFrame()) || virtualDash;
+        if (dashInput && Time.time >= nextDashTime)
         {
+            // Reset virtual dash trigger immediately so it doesn't spam
+            virtualDash = false; 
             StartCoroutine(Dash());
         }
 
-        if (currentWeapon != null && fireAction != null && fireAction.action.IsPressed() && Time.time >= nextFireTime)
+        // Fire Check (Input System OR Virtual Button)
+        bool fireInput = (fireAction != null && fireAction.action.IsPressed()) || virtualFire;
+        if (currentWeapon != null && fireInput && Time.time >= nextFireTime)
         {
             Shoot();
             nextFireTime = Time.time + 1f / currentWeapon.fireRate;
@@ -147,30 +164,38 @@ public class PlayerController : MonoBehaviour
             ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
         }
         
-        // --- UPDATED: Use Event instead of direct Managers ---
         if (currentWeapon != null && currentWeapon.shootClip != null)
         {
             GameEvents.OnPlayerShoot?.Invoke(currentWeapon.shootClip);
         }
-        // ----------------------------------------------------
     }
 
     Transform GetClosestEnemyInSights()
     {
-        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, assistRange, enemyLayer);
+        int count = Physics2D.OverlapCircleNonAlloc(transform.position, assistRange, hitBuffer, enemyLayer);
+        
         Transform bestTarget = null;
         float closestDistance = Mathf.Infinity;
+        
+        Vector2 facingDir = moveInput != Vector2.zero ? moveInput : (Vector2)transform.up;
 
-        foreach (Collider2D hit in hits)
+        for (int i = 0; i < count; i++)
         {
+            Collider2D hit = hitBuffer[i];
+            if (hit == null) continue;
             if (!hit.CompareTag("Enemy")) continue;
+
             Vector2 directionToEnemy = (hit.transform.position - transform.position).normalized;
-            if (moveInput != Vector2.zero)
-            {
-                float angleToEnemy = Vector2.Angle(moveInput, directionToEnemy);
-                if (angleToEnemy > assistAngle / 2) continue;
-            }
             float distance = Vector2.Distance(transform.position, hit.transform.position);
+
+            float angleToEnemy = Vector2.Angle(facingDir, directionToEnemy);
+            if (angleToEnemy > assistAngle / 2) continue;
+
+            Vector2 startPos = firePoint != null ? (Vector2)firePoint.position : (Vector2)transform.position;
+            RaycastHit2D wallHit = Physics2D.Raycast(startPos, directionToEnemy, distance, obstacleLayer);
+            
+            if (wallHit.collider != null) continue; // Blocked by wall
+
             if (distance < closestDistance)
             {
                 closestDistance = distance;
@@ -186,11 +211,29 @@ public class PlayerController : MonoBehaviour
         justDashedTargetFrame = true;
         nextDashTime = Time.time + dashCooldown;
         
-        // --- UPDATED: Use Event ---
         GameEvents.OnPlayerDash?.Invoke();
-        // --------------------------
-            
+        
+        // --- VISUALS & PHYSICS ---
+        // Ghost Mode (Pass through everything)
+        if (col != null) col.isTrigger = true; 
+        
+        // Visual Feedback (Transparency)
+        if (weaponRenderer != null) 
+        {
+             SpriteRenderer bodySr = GetComponent<SpriteRenderer>();
+             if (bodySr != null) bodySr.DOFade(0.4f, 0.1f);
+             if (weaponRenderer != null) weaponRenderer.DOFade(0.4f, 0.1f);
+        }
+        
         yield return new WaitForSeconds(dashDuration);
+        
+        // Restore
+        if (col != null) col.isTrigger = false;
+        
+        SpriteRenderer bodySrEnd = GetComponent<SpriteRenderer>();
+        if (bodySrEnd != null) bodySrEnd.DOFade(1f, 0.1f);
+        if (weaponRenderer != null) weaponRenderer.DOFade(1f, 0.1f);
+            
         isDashing = false;
     }
 

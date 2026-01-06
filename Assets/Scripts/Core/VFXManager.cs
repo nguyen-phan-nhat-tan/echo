@@ -3,8 +3,8 @@ using UnityEngine;
 public class VFXManager : MonoBehaviour
 {
     [Header("Pool Tags")]
-    public string impactTag = "VFX_Impact";
-    public string explosionTag = "VFX_Explosion";
+    public string wallHitTag = "VFX_Impact";
+    public string enemyHitTag = "VFX_Explosion";
 
     void OnEnable()
     {
@@ -18,15 +18,15 @@ public class VFXManager : MonoBehaviour
         GameEvents.OnEnemyExplosion -= HandleEnemyExplosion;
     }
 
-    private void HandleBulletImpact(Vector2 pos, Quaternion rotation)
+    private void HandleBulletImpact(Vector2 pos, Quaternion rot)
     {
-        // Spawns sparks flying AWAY from the wall (based on rotation passed in)
-        ObjectPooler.Instance.SpawnFromPool(impactTag, pos, rotation);
+        // Spawns sparks matching the impact rotation
+        ObjectPooler.Instance.SpawnFromPool(wallHitTag, pos, rot);
     }
 
     private void HandleEnemyExplosion(Vector2 pos)
     {
-        // Spawns a 360 burst
-        ObjectPooler.Instance.SpawnFromPool(explosionTag, pos, Quaternion.identity);
+        // Spawns explosion at identity rotation
+        ObjectPooler.Instance.SpawnFromPool(enemyHitTag, pos, Quaternion.identity);
     }
 }

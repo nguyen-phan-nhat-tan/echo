@@ -49,16 +49,23 @@ public class ReactiveGrid : MonoBehaviour
 
     [Header("Ambient Effects")]
     public bool enableAmbient = true;
-    public float ambientAmplitude = 0.5f; // Max distance points wander from origin (Visual Scale)
-    public float ambientStiffness = 5.0f; // How tightly they hold to the wandering target (Snapiness)
-    public float noiseScale = 0.5f;    // Turbulence Scale (Spatial)
-    public float timeScale = 0.5f;     // Turbulence Speed (Temporal)
-    public Vector2 noiseOffset = Vector2.zero; // Manual Offset
+    public float ambientUpdateRate = 0.03f; // ~30 times per second
+    public float ambientAmplitude = 0.5f; 
+    public float ambientStiffness = 5.0f; 
+    public float noiseScale = 0.5f;    
+    public float timeScale = 0.5f;     
+    public Vector2 noiseOffset = Vector2.zero; 
+
+    private float nextAmbientUpdateTime;
 
     void Update()
     {
         if (enableAmbient && m_VectorGrid != null && m_VectorGrid.GridPoints != null)
         {
+            // Optimization: Throttle ambient updates
+            if (Time.time < nextAmbientUpdateTime) return;
+            nextAmbientUpdateTime = Time.time + ambientUpdateRate;
+
             var points = m_VectorGrid.GridPoints;
             int width = points.GetLength(0);
             int height = points.GetLength(1);

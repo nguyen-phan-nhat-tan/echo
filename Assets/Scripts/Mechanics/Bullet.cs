@@ -13,6 +13,10 @@ public class Bullet : MonoBehaviour
     {
         // Reset timer when pulled from pool
         timer = lifeTime;
+        
+        // CRITICAL: Reset state because ObjectPooler reuses objects
+        isEnemyBullet = false;
+        gameObject.tag = "PlayerBullet"; // Restoring default tag
     }
 
     void Update()
@@ -48,6 +52,10 @@ public class Bullet : MonoBehaviour
         {
             if (other.CompareTag("Player"))
             {
+                // Check for Dash Invulnerability
+                PlayerController pc = other.GetComponent<PlayerController>();
+                if (pc != null && pc.isDashing) return;
+
                 Debug.Log("Player Hit!");
                 GameEvents.OnPlayerDeath?.Invoke();
                 

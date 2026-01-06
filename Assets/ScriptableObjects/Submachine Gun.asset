@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   weaponName: Submachine Gun
   weaponSprite: {fileID: 0}
-  fireRate: 25
+  fireRate: 15
   bulletCount: 1
   spreadAngle: 1
   damage: 1
   bulletSpeed: 10
   bulletTag: PlayerBullet
   shakeIntensity: 0.2
-  shootClip: {fileID: 8300000, guid: 947719fd38845824ba3638af9d8e4e54, type: 3}
+  shootClip: {fileID: 8300000, guid: 321feb9f51af885488e5ed433aecd467, type: 3}

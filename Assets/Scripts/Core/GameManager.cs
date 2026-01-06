@@ -132,6 +132,7 @@ public class GameManager : MonoBehaviour
 
     private void SpawnPlayer()
     {
+        player.gameObject.SetActive(false); // Ensure we reset so OnEnable triggers again
         Vector2 spawnPos = GetRandomSpawnPosition();
         usedSpawnPositions.Add(spawnPos);
         player.transform.position = spawnPos;
@@ -228,21 +229,28 @@ public class GameManager : MonoBehaviour
         int totalNewScore = baseScore + timeBonus;
         currentScore = totalNewScore;
 
-        // FIXED: Removed SoundManager call. 
-        // Logic: We fire OnLoopCompleted below, FeedbackManager plays the "Win" sound.
-
+        // Save Data
         LoopData newData = new LoopData(currentWeaponIndex, new List<FrameData>(playerRecorder.recordedFrames));
         allLoopDatas.Add(newData);
 
+        // Stop Gameplay immediately
         currentState = GameState.LoopTransition;
         GameEvents.OnStateChanged?.Invoke(GameState.LoopTransition);
         
+        // Delay UI/Sound for cinematic effect
+        StartCoroutine(WinSequenceDelayed(baseScore, currentTimer, totalNewScore));
+    }
+
+    private IEnumerator WinSequenceDelayed(int baseScore, float timer, int totalScore)
+    {
+        yield return new WaitForSeconds(1.0f); // Wait for Enemy Death explosion/sound to finish
+
         if (GameUI.Instance != null) 
         {
-            GameUI.Instance.ShowWinSummary(baseScore, currentTimer, totalNewScore);
+            GameUI.Instance.ShowWinSummary(baseScore, timer, totalScore);
         }
         
-        GameEvents.OnLoopCompleted?.Invoke(); // FeedbackManager listens to this
+        GameEvents.OnLoopCompleted?.Invoke(); // SYNCED: Sound plays exactly when UI appears
 
         autoAdvanceCoroutine = StartCoroutine(AutoAdvanceRoutine());
     }
