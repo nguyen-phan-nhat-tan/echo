@@ -67,7 +67,9 @@ public class Bullet : MonoBehaviour
         {
             if (other.CompareTag("Enemy"))
             {
-                // GRID RIPPLE: Handled by FeedbackManager now via OnEnemyExplosion (triggered by Die)
+                // VFX: Impact sparks at hit location
+                Quaternion impactRot = transform.rotation * Quaternion.Euler(0, 0, 180);
+                GameEvents.OnBulletImpact?.Invoke(transform.position, impactRot);
 
                 EchoController echo = other.GetComponent<EchoController>();
                 if (echo != null) 
@@ -76,8 +78,6 @@ public class Bullet : MonoBehaviour
                 }
             
                 Disable();
-                // REMOVED: GameEvents.OnEnemyDeath?.Invoke(); 
-                // Reason: EchoController.Die() already calls this. Calling it here causes double counting.
             }
         }
     }

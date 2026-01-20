@@ -15,7 +15,7 @@ public class VectorGridForce : MonoBehaviour
 	{
 		if (m_VectorGrid == null)
 		{
-			m_VectorGrid = FindObjectOfType<VectorGrid>();
+			m_VectorGrid = FindFirstObjectByType<VectorGrid>();
 		}
 	}
 

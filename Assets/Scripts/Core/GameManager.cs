@@ -18,7 +18,10 @@ public class GameManager : MonoBehaviour
     public float minDistanceFromHistory = 3f;       
     
     [Header("Game State")]
-    public float loopDuration = 60f;
+    public float baseLoopDuration = 15f; // Starting timer for loop 1
+    public float timerGrowthRate = 10f;  // How much timer grows per log unit
+    public float maxLoopDuration = 60f;  // Cap on timer
+    private float currentLoopDuration;   // Calculated duration for this loop
     private float currentTimer;
     private int currentLoop = 0;
     private int currentScore = 0;
@@ -26,6 +29,15 @@ public class GameManager : MonoBehaviour
     
     [Header("Arsenal")]
     public List<WeaponData> availableWeapons;
+    
+    [Header("Loop Transition Timing")]
+    public float winDelay = 1.0f;
+    public float autoAdvanceDelay = 3.0f;
+    public float rewindDelay = 1.5f;
+    
+    [Header("Slow Motion Settings")]
+    public float slowMoTimeScale = 0.3f;
+    public float slowMoDuration = 1.5f;
     
     // DATA STORAGE
     private List<LoopData> allLoopDatas = new List<LoopData>(); 
@@ -82,7 +94,13 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f; 
         currentLoop++;
-        currentTimer = loopDuration; 
+        
+        // Logarithmic timer: starts at baseTime, grows slowly
+        // Formula: base + rate * ln(loop + 1), capped at max
+        currentLoopDuration = baseLoopDuration + timerGrowthRate * Mathf.Log(currentLoop + 1);
+        currentLoopDuration = Mathf.Min(currentLoopDuration, maxLoopDuration);
+        currentTimer = currentLoopDuration;
+        
         currentState = GameState.Intro;
         
         if (availableWeapons.Count > 0)
@@ -114,6 +132,8 @@ public class GameManager : MonoBehaviour
 
         GameEvents.OnStateChanged?.Invoke(GameState.Intro);
         GameEvents.OnLoopStart?.Invoke(currentLoop);
+
+        // NOTE: OpenShutters is now handled inside ShowLoopStart's sequence
 
         SpawnPlayer();
         SpawnEchoes();
@@ -237,21 +257,41 @@ public class GameManager : MonoBehaviour
         currentState = GameState.LoopTransition;
         GameEvents.OnStateChanged?.Invoke(GameState.LoopTransition);
         
-        // Delay UI/Sound for cinematic effect
-        StartCoroutine(WinSequenceDelayed(baseScore, currentTimer, totalNewScore));
+        // CINEMATIC WIN SEQUENCE: Slow mo → Shutters → Score
+        StartCoroutine(CinematicWinSequence(baseScore, currentTimer, totalNewScore));
     }
 
-    private IEnumerator WinSequenceDelayed(int baseScore, float timer, int totalScore)
+    private IEnumerator CinematicWinSequence(int baseScore, float timer, int totalScore)
     {
-        yield return new WaitForSeconds(1.0f); // Wait for Enemy Death explosion/sound to finish
-
+        // 1. SLOW MOTION
+        Time.timeScale = slowMoTimeScale;
+        Time.fixedDeltaTime = 0.02f * Time.timeScale;
+        
+        yield return new WaitForSecondsRealtime(slowMoDuration);
+        
+        // 2. IMPACT EFFECT (chromatic aberration burst)
+        if (FeedbackManager.Instance != null) FeedbackManager.Instance.PlayImpact();
+        
+        yield return new WaitForSecondsRealtime(0.4f); // Give effect time to be seen
+        
+        // 3. CLOSE SHUTTERS
+        if (GameUI.Instance != null) GameUI.Instance.CloseShutters(false); // false = no built-in flash
+        
+        yield return new WaitForSecondsRealtime(0.4f); // Wait for shutters to close
+        
+        // 4. RESTORE TIME
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+        
+        // 5. SHOW SCORE
+        yield return new WaitForSecondsRealtime(winDelay);
+        
         if (GameUI.Instance != null) 
         {
             GameUI.Instance.ShowWinSummary(baseScore, timer, totalScore);
         }
         
-        GameEvents.OnLoopCompleted?.Invoke(); // SYNCED: Sound plays exactly when UI appears
-
+        GameEvents.OnLoopCompleted?.Invoke();
         autoAdvanceCoroutine = StartCoroutine(AutoAdvanceRoutine());
     }
 
@@ -262,6 +302,33 @@ public class GameManager : MonoBehaviour
         GameEvents.OnPlayerDeath?.Invoke(); // FeedbackManager listens to this
         GameEvents.OnLoopEnded?.Invoke(); 
         
+        // CINEMATIC DEATH SEQUENCE
+        StartCoroutine(CinematicDeathSequence());
+    }
+    
+    private IEnumerator CinematicDeathSequence()
+    {
+        // 1. SLOW MOTION
+        Time.timeScale = slowMoTimeScale;
+        Time.fixedDeltaTime = 0.02f * Time.timeScale;
+        
+        yield return new WaitForSecondsRealtime(slowMoDuration);
+        
+        // 2. IMPACT EFFECT (chromatic aberration burst)
+        if (FeedbackManager.Instance != null) FeedbackManager.Instance.PlayImpact();
+        
+        yield return new WaitForSecondsRealtime(0.4f); // Give effect time to be seen
+        
+        // 3. CLOSE SHUTTERS
+        if (GameUI.Instance != null) GameUI.Instance.CloseShutters(false);
+        
+        yield return new WaitForSecondsRealtime(0.4f);
+        
+        // 4. RESTORE TIME
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+        
+        // 5. CALCULATE HIGH SCORE
         int savedHighScore = PlayerPrefs.GetInt("HighScore", 0);
         bool isNewRecord = false;
         if (currentScore > savedHighScore)
@@ -272,13 +339,16 @@ public class GameManager : MonoBehaviour
             isNewRecord = true;
         }
 
+        // 6. SHOW GAME OVER
+        yield return new WaitForSecondsRealtime(winDelay);
+        
         if (GameUI.Instance != null) 
             GameUI.Instance.ShowGameOver(currentScore, currentLoop, savedHighScore, isNewRecord);
     }
 
     IEnumerator AutoAdvanceRoutine()
     {
-        yield return new WaitForSeconds(3.0f);
+        yield return new WaitForSeconds(autoAdvanceDelay);
         StartCoroutine(RewindRoutine());
     }
 
@@ -288,7 +358,7 @@ public class GameManager : MonoBehaviour
         GameEvents.OnStateChanged?.Invoke(GameState.Rewinding);
         GameEvents.OnLoopEnded?.Invoke(); 
         
-        yield return new WaitForSeconds(1.5f);
+        yield return new WaitForSeconds(rewindDelay);
         StartNewLoop();
     }
     
