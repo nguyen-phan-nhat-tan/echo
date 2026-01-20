@@ -11,8 +11,10 @@ public class FeedbackManager : MonoBehaviour
     public MMF_Player enemyDeathFeedback; 
     public MMF_Player loopWinFeedback;     
     public MMF_Player gameOverFeedback;    
-    public MMF_Player newLoopFeedback; // NEW
-
+    public MMF_Player newLoopFeedback;
+    public MMF_Player rewindFeedback;
+    public MMF_Player impactFeedback; // Heavy chromatic aberration burst
+    
     void OnEnable()
     {
         GameEvents.OnPlayerShoot += OnPlayerShoot;
@@ -23,6 +25,7 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnPlayerDeath += OnPlayerDeath;
         GameEvents.OnBulletImpact += OnBulletImpact;
         GameEvents.OnEnemyExplosion += OnEnemyExplosion;
+        GameEvents.OnStateChanged += OnGameStateChanged;
     }
 
     void OnDisable()
@@ -35,6 +38,7 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnPlayerDeath -= OnPlayerDeath;
         GameEvents.OnBulletImpact -= OnBulletImpact;
         GameEvents.OnEnemyExplosion -= OnEnemyExplosion;
+        GameEvents.OnStateChanged -= OnGameStateChanged;
     }
 
     // --- UPDATED HANDLER ---
@@ -105,5 +109,21 @@ public class FeedbackManager : MonoBehaviour
         {
             ReactiveGrid.Instance.ApplyForce(pos, 5f, 3f, Color.red, true);
         }
+    }
+    
+    void OnGameStateChanged(GameState state)
+    {
+        if (state == GameState.Rewinding && rewindFeedback != null)
+            rewindFeedback.PlayFeedbacks();
+    }
+    
+    // Public method for external calls
+    public static FeedbackManager Instance;
+    void Awake() { Instance = this; }
+    
+    public void PlayImpact()
+    {
+        if (impactFeedback != null)
+            impactFeedback.PlayFeedbacks();
     }
 }

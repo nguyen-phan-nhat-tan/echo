@@ -16,7 +16,7 @@ MonoBehaviour:
   weaponSprite: {fileID: 0}
   fireRate: 5
   bulletCount: 5
-  spreadAngle: 25
+  spreadAngle: 15
   damage: 1
   bulletSpeed: 10
   bulletTag: PlayerBullet

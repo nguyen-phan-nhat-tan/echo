@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   weaponName: Submachine Gun
   weaponSprite: {fileID: 0}
-  fireRate: 15
+  fireRate: 12
   bulletCount: 1
   spreadAngle: 1
   damage: 1
