@@ -5,31 +5,63 @@ public class Bullet : MonoBehaviour
     [Header("Settings")]
     public float speed = 20f; // Increased default speed for snappy feel
     public float lifeTime = 3f; // Reduced lifetime (10s is too long for off-screen bullets)
+    [Header("Mechanics")]
     public bool isEnemyBullet = false;
-    
+    public bool useWave = false; // New
+    public bool useRicochet = false; // New
+    public int bounces = 0; // New
+
     private float timer;
+    private float startTime; // For wave
 
     void OnEnable() 
     {
-        // Reset timer when pulled from pool
         timer = lifeTime;
-        
-        // CRITICAL: Reset state because ObjectPooler reuses objects
+        startTime = Time.time;
         isEnemyBullet = false;
-        gameObject.tag = "PlayerBullet"; // Restoring default tag
+        useWave = false;
+        useRicochet = false;
+        bounces = 0;
+        gameObject.tag = "PlayerBullet"; 
+    }
+
+    // Initialize method to pass weapon data
+    private WeaponData sourceWeapon; // NEW
+
+    public void Initialize(WeaponData data)
+    {
+        sourceWeapon = data; // Store reference
+        speed = data.bulletSpeed;
+        useWave = data.waveMovement;
+        useRicochet = data.ricochet;
+        bounces = data.ricochet ? 1 : 0;
+        
+        // Spawn Trail
+        if (sourceWeapon.bulletTrailPrefab != null)
+        {
+            GameObject trail = Instantiate(sourceWeapon.bulletTrailPrefab, transform.position, Quaternion.identity);
+            trail.transform.SetParent(transform);
+            trail.transform.localPosition = Vector3.zero;
+        }
     }
 
     void Update()
     {
-        // Move Local Up (Forward)
+        // Movement
+        float waveOffset = 0f;
+        if (useWave)
+        {
+            waveOffset = Mathf.Sin((Time.time - startTime) * 10f) * 5f; 
+        }
+
+        Vector3 moveDir = Vector2.up * speed * Time.deltaTime;
+        // Apply wave relative to right vector
+        if (useWave) transform.Translate(Vector2.right * waveOffset * Time.deltaTime);
+        
         transform.Translate(Vector2.up * speed * Time.deltaTime);
 
-        // Manual timer is cleaner than Coroutine for high-frequency objects
         timer -= Time.deltaTime;
-        if (timer <= 0)
-        {
-            Disable();
-        }
+        if (timer <= 0) Disable();
     }
 
     void OnTriggerEnter2D(Collider2D other)
@@ -37,12 +69,34 @@ public class Bullet : MonoBehaviour
         // 1. Hit Wall
         if (other.CompareTag("Wall"))
         {
-            // VFX: Spawn sparks rotating 180 degrees from bullet direction
-            Quaternion impactRot = transform.rotation * Quaternion.Euler(0, 0, 180);
-            GameEvents.OnBulletImpact?.Invoke(transform.position, impactRot);
-            
-            // GRID RIPPLE: Handled by FeedbackManager now via OnBulletImpact
+            // RICOCHET LOGIC
+            if (useRicochet && bounces > 0)
+            {
+                bounces--;
+                
+                // Simple reflection: Raycast to find normal
+                Vector2 dir = transform.up;
+                RaycastHit2D hit = Physics2D.Raycast(transform.position - (Vector3)dir * 0.5f, dir, 1.0f);
+                if (hit.collider != null)
+                {
+                    Vector2 reflectDir = Vector2.Reflect(dir, hit.normal);
+                    float rot = Mathf.Atan2(reflectDir.y, reflectDir.x) * Mathf.Rad2Deg;
+                    transform.rotation = Quaternion.Euler(0, 0, rot - 90);
+                    return; // Don't destroy
+                }
+            }
 
+            // CUSTOM WALL HIT VFX
+            if (sourceWeapon != null && sourceWeapon.wallHitPrefab != null)
+            {
+                 Instantiate(sourceWeapon.wallHitPrefab, transform.position, transform.rotation);
+            }
+            else
+            {
+                Quaternion impactRot = transform.rotation * Quaternion.Euler(0, 0, 180);
+                GameEvents.OnBulletImpact?.Invoke(transform.position, impactRot);
+            }
+            
             Disable();
             return;
         }
@@ -67,9 +121,16 @@ public class Bullet : MonoBehaviour
         {
             if (other.CompareTag("Enemy"))
             {
-                // VFX: Impact sparks at hit location
-                Quaternion impactRot = transform.rotation * Quaternion.Euler(0, 0, 180);
-                GameEvents.OnBulletImpact?.Invoke(transform.position, impactRot);
+                // CUSTOM ENEMY HIT VFX
+                if (sourceWeapon != null && sourceWeapon.enemyHitPrefab != null)
+                {
+                    Instantiate(sourceWeapon.enemyHitPrefab, transform.position, transform.rotation);
+                }
+                else
+                {
+                    Quaternion impactRot = transform.rotation * Quaternion.Euler(0, 0, 180);
+                    GameEvents.OnBulletImpact?.Invoke(transform.position, impactRot);
+                }
 
                 EchoController echo = other.GetComponent<EchoController>();
                 if (echo != null) 

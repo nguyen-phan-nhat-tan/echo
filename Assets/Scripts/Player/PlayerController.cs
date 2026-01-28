@@ -41,6 +41,26 @@ public class PlayerController : MonoBehaviour
     [HideInInspector] public bool isDashing = false;
     private bool canControl = true;
     
+    // STAT MULTIPLIERS (Debuffs/Buffs)
+    private float moveSpeedMult = 1f;
+    private float fireRateMult = 1f;
+    private float dashCooldownMult = 1f;
+
+    // MECHANICS FLAGS
+    private bool driftEnabled = false;
+    
+    public void SetStatsMultiplier(float move, float fire, float dash)
+    {
+        moveSpeedMult = move;
+        fireRateMult = fire;
+        dashCooldownMult = dash;
+    }
+
+    public void SetMechanicsRef(bool drift)
+    {
+        driftEnabled = drift;
+    }
+
     // Recorder Flags
     [HideInInspector] public bool justShotTargetFrame = false;
     [HideInInspector] public bool justDashedTargetFrame = false;
@@ -51,7 +71,13 @@ public class PlayerController : MonoBehaviour
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        col = GetComponent<Collider2D>(); // NEW
+        col = GetComponent<Collider2D>(); 
+        if (firePoint != null) defaultFirePointPos = firePoint.localPosition; // Store initial
+        if (weaponRenderer != null) 
+        {
+            defaultWeaponPos = weaponRenderer.transform.localPosition;
+            defaultWeaponRot = weaponRenderer.transform.localRotation;
+        }
     }
 
     void OnEnable()
@@ -76,10 +102,15 @@ public class PlayerController : MonoBehaviour
         if (!canControl)
         {
             moveInput = Vector2.zero;
+            // Stop logic handles in Update, but physically stop here
             if (rb != null)
             {
-                rb.linearVelocity = Vector2.zero;
-                rb.angularVelocity = 0f;
+               // Keep velocity if drifting? No, pause breaks physics usually
+               if (newState != GameState.Playing)
+               {
+                    rb.linearVelocity = Vector2.zero;
+                    rb.angularVelocity = 0f;
+               }
             }
         }
     }
@@ -87,6 +118,19 @@ public class PlayerController : MonoBehaviour
     public void EquipWeapon(WeaponData newData)
     {
         currentWeapon = newData;
+        currentSpiralAngle = 0f; // Reset spiral
+        if (firePoint != null)
+        {
+            firePoint.localRotation = Quaternion.identity; 
+            firePoint.localPosition = defaultFirePointPos; // Reset position
+        }
+
+        if (weaponRenderer != null && weaponRenderer.transform != transform)
+        {
+            weaponRenderer.transform.localPosition = defaultWeaponPos;
+            weaponRenderer.transform.localRotation = defaultWeaponRot;
+        }
+
         if (weaponRenderer != null && newData.weaponSprite != null)
         {
             weaponRenderer.sprite = newData.weaponSprite;
@@ -124,8 +168,10 @@ public class PlayerController : MonoBehaviour
         bool fireInput = (fireAction != null && fireAction.action.IsPressed()) || virtualFire;
         if (currentWeapon != null && fireInput && Time.time >= nextFireTime)
         {
-            Shoot();
-            nextFireTime = Time.time + 1f / currentWeapon.fireRate;
+            StartShootRoutine();
+            // Calculation for next fire time should account for the burst duration? 
+            // Usually fire rate is "time between starts of bursts".
+            nextFireTime = Time.time + 1f / (currentWeapon.fireRate * fireRateMult);
             justShotTargetFrame = true; 
         }
     }
@@ -140,33 +186,156 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            rb.MovePosition(rb.position + moveInput * moveSpeed * Time.fixedDeltaTime);
+            Vector2 targetVel = moveInput * (moveSpeed * moveSpeedMult);
+            
+            if (driftEnabled)
+            {
+                // DRIFT PHYSICS: Lerp velocity for slippery feel
+                rb.linearVelocity = Vector2.Lerp(rb.linearVelocity, targetVel, 5f * Time.fixedDeltaTime);
+            }
+            else
+            {
+                // STANDARD: Direct position move (snappy)
+                rb.MovePosition(rb.position + targetVel * Time.fixedDeltaTime);
+                // Ensure physics velocity doesn't fight MovePosition
+                rb.linearVelocity = Vector2.zero;
+            }
         }
     }
 
-    void Shoot()
+    private Coroutine shootCoroutine;
+
+    void StartShootRoutine()
+    {
+        if (shootCoroutine != null) StopCoroutine(shootCoroutine);
+        shootCoroutine = StartCoroutine(ShootSequence());
+    }
+
+    IEnumerator ShootSequence()
+    {
+        int shots = currentWeapon.burstCount;
+        if (shots < 1) shots = 1;
+
+        for (int b = 0; b < shots; b++)
+        {
+            PerformShoot();
+            if (shots > 1) yield return new WaitForSeconds(currentWeapon.burstDelay);
+        }
+    }
+
+    // State for Spiral
+    private float currentSpiralAngle = 0f;
+    private Vector3 defaultFirePointPos;
+    private Vector3 defaultWeaponPos;
+    private Quaternion defaultWeaponRot;
+
+    void PerformShoot()
     {
         Quaternion baseRotation = firePoint.rotation;
-        Transform target = GetClosestEnemyInSights();
         
-        if (target != null)
+        // ASPIRAL LOGIC
+        if (currentWeapon.spiralRate != 0)
         {
-            Vector2 directionToTarget = target.position - firePoint.position;
-            float angle = Mathf.Atan2(directionToTarget.y, directionToTarget.x) * Mathf.Rad2Deg;
-            baseRotation = Quaternion.Euler(0f, 0f, angle - 90f);
+            // NEW: Ring/Nova Pattern
+            // Fire multiple bullets in a circle instantly
+            int pelletCount = currentWeapon.bulletCount; 
+            if (pelletCount < 1) pelletCount = 1;
+            
+            float angleStep = 360f / pelletCount;
+            
+            for (int i = 0; i < pelletCount; i++)
+            {
+                float angle = i * angleStep;
+                Quaternion rotation = Quaternion.Euler(0f, 0f, angle - 90f); // -90 because Up is 0, usually sprite faces Up
+                
+                // If firePoint exists, use its position, otherwise transform
+                Vector3 spawnPos = (firePoint != null) ? firePoint.position : transform.position;
+                
+                GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, spawnPos, rotation);
+                
+                Bullet bulletScript = bulletObj.GetComponent<Bullet>();
+                if (bulletScript != null) bulletScript.Initialize(currentWeapon);
+            }
+
+            // Since we handled spawning inside this block, we should return or skip the standard logic below
+            // Ideally we structure this so we don't duplicate code, but the standard logic below handles "Spread" and "Burst" differently.
+            // The request purely asked to rewrite the SPIRAL logic.
+            
+            if (currentWeapon != null)
+            {
+                 // Custom Muzzle Flash
+                 if (currentWeapon.muzzleFlashPrefab != null)
+                 {
+                     Vector3 spawnPos = (firePoint != null) ? firePoint.position : transform.position;
+                     Quaternion spawnRot = (firePoint != null) ? firePoint.rotation : transform.rotation;
+                     Instantiate(currentWeapon.muzzleFlashPrefab, spawnPos, spawnRot);
+                 }
+                 
+                 if (currentWeapon.shootClip != null)
+                 {
+                      GameEvents.OnPlayerShoot?.Invoke(currentWeapon.shootClip);
+                 }
+            }
+            return; // Exit early as we fired the ring
         }
 
-        for (int i = 0; i < currentWeapon.bulletCount; i++)
+        else
         {
-            float randomSpread = Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
-            Quaternion finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
+            // Standard Aiming (only if not spiraling)
+            Transform target = GetClosestEnemyInSights();
+            if (target != null)
+            {
+                Vector2 directionToTarget = target.position - firePoint.position;
+                float angle = Mathf.Atan2(directionToTarget.y, directionToTarget.x) * Mathf.Rad2Deg;
+                baseRotation = Quaternion.Euler(0f, 0f, angle - 90f);
+            }
+        }
 
-            ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
+        int count = currentWeapon.bulletCount;
+        
+        for (int i = 0; i < count; i++)
+        {
+            Quaternion finalRotation;
+            
+            // FIXED PATTERN LOGIC
+            if (currentWeapon.fixedPatternCount > 0 && count > 1)
+            {
+                // Evenly distributed spread
+                // Example: Spanning 90 degrees total. -45 to 45.
+                // Or use spreadAngle as total arc.
+                float totalArc = currentWeapon.spreadAngle;
+                float step = totalArc / (count - 1);
+                float startAngle = -totalArc / 2f;
+                float currentAngle = startAngle + (step * i);
+                
+                finalRotation = baseRotation * Quaternion.Euler(0, 0, currentAngle);
+            }
+            else
+            {
+                // Random Spread (Original)
+                float randomSpread = Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
+                finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
+            }
+
+            GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
+            
+            // Initialize Bullet Data (Ricochet, Wave)
+            Bullet bulletScript = bulletObj.GetComponent<Bullet>();
+            if (bulletScript != null) bulletScript.Initialize(currentWeapon);
         }
         
-        if (currentWeapon != null && currentWeapon.shootClip != null)
+        if (currentWeapon != null)
         {
-            GameEvents.OnPlayerShoot?.Invoke(currentWeapon.shootClip);
+            // Custom Muzzle Flash
+             if (currentWeapon.muzzleFlashPrefab != null)
+             {
+                 Instantiate(currentWeapon.muzzleFlashPrefab, firePoint.position, firePoint.rotation);
+             }
+
+            if (currentWeapon.shootClip != null)
+            {
+                GameEvents.OnPlayerShoot?.Invoke(currentWeapon.shootClip);
+            }
         }
     }
 
@@ -209,7 +378,26 @@ public class PlayerController : MonoBehaviour
     {
         isDashing = true;
         justDashedTargetFrame = true;
-        nextDashTime = Time.time + dashCooldown;
+        nextDashTime = Time.time + (dashCooldown * dashCooldownMult); // Applied multiplier (higher mult = longer cooldown? actually logic was mult < 1 for debuff?)
+        // Wait, for Heavy debuff I set mult = 0.5. If cooldown is 1s, 0.5s is faster.
+        // I should probably DIVIDE by mult if I want 'Heavy' to make it SLOWER (longer cooldown).
+        // OR I should change GameManager to send > 1 for debuffs on delay.
+        // Let's check GameManager: "if (currentDebuff == DebuffType.Heavy) dashMult = 0.5f;"
+        // If I want Slow Dash (Heavy), I probably want LONGER cooldown or SLOWER speed.
+        // "Heavy" usually implies slow movement or slow actions.
+        // If I multiply cooldown by 0.5, it becomes FASTER. I want to multiply by (1/mult) or 2.
+        // Let's stick to the convention: Multiplier < 1 means WORSE stat. 
+        // For Cooldown, WORSE means LONGER. So NewCooldown = Base / Mult.
+        // Example: Base=1, Mult=0.5. New = 1/0.5 = 2s. CORRECT.
+        
+        // Wait, wait. Let's look at FireRate. 
+        // nextFireTime = Time.time + 1f / (fireRate * fireRateMult);
+        // Mult = 0.5. Rate = 5 * 0.5 = 2.5. Delay = 1/2.5 = 0.4s (vs 0.2s). SLOWER. CORRECT.
+        
+        // So for COOLDOWN (Dash), to make it SLOWER (worse), I need to INCREASE the value.
+        // So dividing by mult (if mult < 1) increases it.
+        
+        nextDashTime = Time.time + (dashCooldown / dashCooldownMult); // FIXED LOGIC
         
         GameEvents.OnPlayerDash?.Invoke();
         

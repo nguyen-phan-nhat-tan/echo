@@ -41,24 +41,32 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnStateChanged -= OnGameStateChanged;
     }
 
-    // --- UPDATED HANDLER ---
+    // --- OPTIMIZED HANDLER ---
+    private MMF_Sound cachedShootSound;
+    private float lastShootTime;
+
     private void OnPlayerShoot(AudioClip clipToPlay)
     {
+        // 0. Cooldown check (prevent audio overlap/stutter)
+        if (Time.time < lastShootTime + 0.05f) return;
+        lastShootTime = Time.time;
+
         if (playerShootFeedback != null)
         {
-            // 1. Find the Sound Feedback inside the player
-            // Note: MMF_Sound is the class name for the "Audio > Sound" feedback
-            MMF_Sound soundFeedback = playerShootFeedback.GetFeedbackOfType<MMF_Sound>();
+            // 1. Cache the reference to avoid frequent GetComponent calls
+            if (cachedShootSound == null) 
+            {
+                cachedShootSound = playerShootFeedback.GetFeedbackOfType<MMF_Sound>();
+            }
 
             // 2. Inject the clip
-            if (soundFeedback != null)
+            if (cachedShootSound != null)
             {
-                soundFeedback.Sfx = clipToPlay;
+                cachedShootSound.Sfx = clipToPlay;
                 
                 // Safety: Ensure settings are correct for 2D
-                soundFeedback.MinVolume = 1f;
-                soundFeedback.MaxVolume = 1f;
-                // soundFeedback.SpatialBlend = 0f; // Feel 5.x property usually
+                cachedShootSound.MinVolume = 1f;
+                cachedShootSound.MaxVolume = 1f;
             }
 
             // 3. Play

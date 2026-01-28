@@ -24,10 +24,8 @@ public static class GameEvents
     public static Action<float> OnTimerUpdate;
     public static Action<WeaponData> OnWeaponChange; 
 
-    // --- UPDATED: Event carries the specific sound to play ---
+    // Player Actions
     public static Action<AudioClip> OnPlayerShoot; 
-    // --------------------------------------------------------
-
     public static Action OnPlayerDash;
 
     // VFX / Physics Events

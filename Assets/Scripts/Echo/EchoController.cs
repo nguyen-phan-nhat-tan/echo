@@ -20,11 +20,15 @@ public class EchoController : MonoBehaviour
     private Collider2D col;
     private Color originalColor = Color.red;
 
+    private Vector3 initialScale;
+
     void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
         col = GetComponent<Collider2D>();
         originalColor = spriteRenderer.color;
+        initialScale = transform.localScale; // Capture inspector scale
+        if (firePoint != null) defaultFirePointPos = firePoint.localPosition;
     }
     
     void OnEnable()
@@ -50,9 +54,18 @@ public class EchoController : MonoBehaviour
         currentFrameIndex = 0;
         isStaticDummy = false;
         wasDashing = false;
+        currentSpiralAngle = 0f; // Reset Spiral
+
+        if (firePoint != null)
+        {
+            firePoint.localPosition = defaultFirePointPos;
+            firePoint.localRotation = Quaternion.identity;
+        }
         
         ResetState();
     }
+    
+    // ...
 
     public void InitializeDummy()
     {
@@ -70,7 +83,7 @@ public class EchoController : MonoBehaviour
         col.enabled = true;               
         tag = "Enemy";                    
         transform.localScale = Vector3.zero;
-        transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetLink(gameObject);
+        transform.DOScale(initialScale, 0.5f).SetEase(Ease.OutBack).SetLink(gameObject);
     }
 
     void FixedUpdate()
@@ -124,14 +137,53 @@ public class EchoController : MonoBehaviour
         col.enabled = true;
     }
     
+    // State for Spiral
+    private float currentSpiralAngle = 0f;
+    private Vector3 defaultFirePointPos;
+
     void FireBullet()
     {
         if (currentWeapon == null) return;
         
+        Quaternion baseRotation = firePoint.rotation;
+
+        // NEW: Ring/Nova Pattern Logic (Parity with PlayerController)
+        if (currentWeapon.spiralRate != 0)
+        {
+             int pelletCount = currentWeapon.bulletCount; 
+             if (pelletCount < 1) pelletCount = 1;
+
+             float angleStep = 360f / pelletCount;
+
+             for (int i = 0; i < pelletCount; i++)
+             {
+                 float angle = i * angleStep;
+                 // Note: Enocders usually capture world rotation. Here we generate a local ring.
+                 // Echoes follow frame data rotation, but for the Ring pattern we just blast 360 relative to up.
+                 Quaternion rotation = Quaternion.Euler(0f, 0f, angle - 90f); 
+
+                 GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, rotation);
+                 
+                 // Echo Specific: Convert to Enemy Bullet
+                 if (bulletObj != null)
+                 {
+                     Bullet bulletScript = bulletObj.GetComponent<Bullet>();
+                     if (bulletScript != null)
+                     {
+                         bulletScript.Initialize(currentWeapon);
+                         bulletScript.isEnemyBullet = true; // Override
+                         bulletObj.tag = "EnemyBullet";     // Override
+                     }
+                 }
+             }
+             return; // Done
+        }
+
+        // Standard Logic (if not Nova)
         for (int i = 0; i < currentWeapon.bulletCount; i++)
         {
             float randomSpread = UnityEngine.Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
-            Quaternion finalRotation = firePoint.rotation * Quaternion.Euler(0, 0, randomSpread);
+            Quaternion finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
             
             // Spawn the bullet (using PlayerBullet prefab usually)
             GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
@@ -139,11 +191,12 @@ public class EchoController : MonoBehaviour
             // Convert it to an "Enemy Bullet" so it doesn't hurt other Echoes (which are Tagged Enemy)
             if (bulletObj != null)
             {
-                bulletObj.tag = "EnemyBullet"; // Ensure physics layer ignores other enemies
                 Bullet bulletScript = bulletObj.GetComponent<Bullet>();
                 if (bulletScript != null)
                 {
-                    bulletScript.isEnemyBullet = true;
+                    bulletScript.Initialize(currentWeapon);
+                    bulletScript.isEnemyBullet = true; 
+                    bulletObj.tag = "EnemyBullet"; 
                 }
             }
         }
@@ -156,6 +209,7 @@ public class EchoController : MonoBehaviour
         
         gameObject.tag = "Untagged"; 
         
+        // --- FIXED: Event Only (FeedbackManager handles Shake/Sound) ---
         // --- FIXED: Event Only (FeedbackManager handles Shake/Sound) ---
         GameEvents.OnEnemyDeath?.Invoke();
         GameEvents.OnEnemyExplosion?.Invoke(transform.position); 

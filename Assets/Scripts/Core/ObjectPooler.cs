@@ -34,6 +34,11 @@ public class ObjectPooler : MonoBehaviour
 
         foreach (Pool pool in pools)
         {
+            if (pool.prefab == null)
+            {
+                Debug.LogError($"ObjectPooler: Pool with tag '{pool.tag}' has a missing Prefab reference! Please assign it in the Inspector.");
+                continue;
+            }
             Queue<GameObject> objectPool = new Queue<GameObject>();
 
             for (int i = 0; i < pool.size; i++)

@@ -15,14 +15,14 @@ public class ScoreCounter : MonoBehaviour
     public Ease countEase = Ease.OutQuad;
     public string prefix = "";
     public string suffix = "";
-    public string format = "N0"; // Number format (N0 = comma separated)
+    public string format = "F2"; // Changed to F2 for decimals
     
     [Header("Punch Effect")]
     public bool punchOnComplete = true;
     public float punchScale = 1.2f;
     public float punchDuration = 0.2f;
     
-    private int currentDisplayValue = 0;
+    private float currentDisplayValue = 0f;
     private Tween countTween;
     
     void Awake()
@@ -34,7 +34,7 @@ public class ScoreCounter : MonoBehaviour
     /// <summary>
     /// Animate counting from current value to target
     /// </summary>
-    public void CountTo(int targetValue, float duration = -1f)
+    public void CountTo(float targetValue, float duration = -1f)
     {
         if (duration < 0) duration = countDuration;
         
@@ -60,7 +60,7 @@ public class ScoreCounter : MonoBehaviour
     /// <summary>
     /// Set value instantly without animation
     /// </summary>
-    public void SetValue(int value)
+    public void SetValue(float value)
     {
         countTween?.Kill();
         currentDisplayValue = value;
@@ -70,7 +70,7 @@ public class ScoreCounter : MonoBehaviour
     /// <summary>
     /// Add to current value with animation
     /// </summary>
-    public void AddValue(int amount, float duration = -1f)
+    public void AddValue(float amount, float duration = -1f)
     {
         CountTo(currentDisplayValue + amount, duration);
     }
@@ -78,9 +78,9 @@ public class ScoreCounter : MonoBehaviour
     /// <summary>
     /// Animate from 0 to target
     /// </summary>
-    public void CountFromZero(int targetValue, float duration = -1f)
+    public void CountFromZero(float targetValue, float duration = -1f)
     {
-        currentDisplayValue = 0;
+        currentDisplayValue = 0f;
         UpdateText();
         CountTo(targetValue, duration);
     }
@@ -108,5 +108,5 @@ public class ScoreCounter : MonoBehaviour
     /// <summary>
     /// Get current displayed value
     /// </summary>
-    public int GetCurrentValue() => currentDisplayValue;
+    public float GetCurrentValue() => currentDisplayValue;
 }
