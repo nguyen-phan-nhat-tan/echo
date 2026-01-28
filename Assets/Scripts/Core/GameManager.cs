@@ -8,9 +8,11 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance;
 
     [Header("References")]
+    [Header("UI References")]
     public PlayerController player;
     public Recorder playerRecorder;
     public GameObject echoPrefab;
+    public GameObject mainCanvas; // NEW: Reference to enable Canvas
     
     [Header("Spawn Settings")]
     public Vector2 mapSize = new Vector2(25f, 25f); 
@@ -18,13 +20,13 @@ public class GameManager : MonoBehaviour
     public float minDistanceFromHistory = 3f;       
     
     [Header("Game State")]
-    public float baseLoopDuration = 15f; // Starting timer for loop 1
-    public float timerGrowthRate = 10f;  // How much timer grows per log unit
-    public float maxLoopDuration = 60f;  // Cap on timer
-    private float currentLoopDuration;   // Calculated duration for this loop
+    public float baseLoopDuration = 15f; 
+    public float timerGrowthRate = 5f;   
+    public float maxLoopDuration = 300f;  
+    private float currentLoopDuration;   
     private float currentTimer;
     private int currentLoop = 0;
-    private int currentScore = 0;
+    private float currentScore = 0f;
     public GameState currentState = GameState.Intro;
     
     [Header("Arsenal")]
@@ -44,6 +46,11 @@ public class GameManager : MonoBehaviour
     private List<GameObject> activeEchoes = new List<GameObject>();
     private List<Vector2> usedSpawnPositions = new List<Vector2>();
     
+    // DEBUFF SYSTEM
+    public List<DebuffData> availableDebuffs;
+    public DebuffData currentActiveDebuff; 
+
+    // Internal State
     private int currentWeaponIndex = 0;
     private Coroutine autoAdvanceCoroutine;
 
@@ -51,6 +58,16 @@ public class GameManager : MonoBehaviour
     { 
         if (Instance == null) Instance = this; 
         else Destroy(gameObject);
+        
+        // Auto-load debuffs if empty
+        if (availableDebuffs == null || availableDebuffs.Count == 0)
+        {
+            var loaded = Resources.LoadAll<DebuffData>("Debuffs");
+            if (loaded.Length > 0)
+            {
+                availableDebuffs = new List<DebuffData>(loaded);
+            }
+        }
     }
 
     void OnEnable()
@@ -65,7 +82,11 @@ public class GameManager : MonoBehaviour
         GameEvents.OnPlayerDeath -= HandlePlayerDeath;
     }
     
-    void Start() { StartNewLoop(); }
+    void Start() 
+    { 
+        if (mainCanvas != null) mainCanvas.SetActive(true);
+        StartNewLoop(); 
+    }
 
     // --- PAUSE LOGIC ---
     public void TogglePause()
@@ -95,31 +116,73 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f; 
         currentLoop++;
         
-        // Logarithmic timer: starts at baseTime, grows slowly
-        // Formula: base + rate * ln(loop + 1), capped at max
-        currentLoopDuration = baseLoopDuration + timerGrowthRate * Mathf.Log(currentLoop + 1);
+        // Linear Timer: Base + (Loop-1) * Growth
+        currentLoopDuration = baseLoopDuration + (timerGrowthRate * (currentLoop - 1));
         currentLoopDuration = Mathf.Min(currentLoopDuration, maxLoopDuration);
         currentTimer = currentLoopDuration;
+
         
         currentState = GameState.Intro;
         
         if (availableWeapons.Count > 0)
         {
-            currentWeaponIndex = Random.Range(0, availableWeapons.Count);
+            // SEQUENTIAL vs RANDOM selection
+            if (currentLoop <= availableWeapons.Count)
+            {
+                // First pass: Sequential order (Loops 1..Count -> Indices 0..Count-1)
+                currentWeaponIndex = currentLoop - 1;
+            }
+            else
+            {
+                // Subsequent loops: Random
+                currentWeaponIndex = Random.Range(0, availableWeapons.Count);
+            }
             WeaponData selectedWeapon = availableWeapons[currentWeaponIndex];
             player.EquipWeapon(selectedWeapon); 
 
+            // SELECT DEBUFF (Loop 6+)
+            currentActiveDebuff = null;
+            if (currentLoop > 5 && availableDebuffs.Count > 0)
+            {
+                // 25% Chance to have NO debuff (Respite)
+                if (Random.value > 0.25f)
+                {
+                    currentActiveDebuff = availableDebuffs[Random.Range(0, availableDebuffs.Count)];
+                }
+            }
+
+            // APPLY DEBUFF
+            float moveMult = 1f;
+            float fireMult = 1f;
+            float dashMult = 1f;
+            
+            bool isFoggy = false;
+            bool isDrift = false;
+
+            if (currentActiveDebuff != null)
+            {
+                moveMult = currentActiveDebuff.moveSpeedMultiplier;
+                fireMult = currentActiveDebuff.fireRateMultiplier;
+                dashMult = currentActiveDebuff.dashCooldownMultiplier;
+                isFoggy = currentActiveDebuff.fog;
+                isDrift = currentActiveDebuff.drift;
+            }
+            
+            player.SetStatsMultiplier(moveMult, fireMult, dashMult);
+            player.SetMechanicsRef(isDrift);
+
             if (GameUI.Instance != null)
             {
+                GameUI.Instance.ToggleFog(isFoggy);
+                
                 GameUI.Instance.HideSummary();
-                GameUI.Instance.ShowLoopStart(currentLoop, selectedWeapon.weaponName.ToUpper(), () => 
+                string debuffName = (currentActiveDebuff != null) ? currentActiveDebuff.debuffName.ToUpper() : "";
+                
+                GameUI.Instance.ShowLoopStart(currentLoop, selectedWeapon.weaponName.ToUpper(), debuffName, () => 
                 {
                     currentState = GameState.Playing;
                     GameEvents.OnStateChanged?.Invoke(GameState.Playing);
                     playerRecorder.StartRecording();
-                    
-                    // AUDIO NOTE: We removed SoundManager call here. 
-                    // If you want a "Load Weapon" sound, add GameEvents.OnLoopStart listener in FeedbackManager.
                 });
                 GameUI.Instance.UpdateLoop(currentLoop);
                 GameUI.Instance.UpdateTimer(currentTimer);
@@ -132,8 +195,6 @@ public class GameManager : MonoBehaviour
 
         GameEvents.OnStateChanged?.Invoke(GameState.Intro);
         GameEvents.OnLoopStart?.Invoke(currentLoop);
-
-        // NOTE: OpenShutters is now handled inside ShowLoopStart's sequence
 
         SpawnPlayer();
         SpawnEchoes();
@@ -202,7 +263,8 @@ public class GameManager : MonoBehaviour
     {
         if (currentState != GameState.Playing) return;
         
-        currentScore += 100;
+        // NO POINTS for killing enemies
+        // currentScore += 100;
         
         if (GameUI.Instance != null) GameUI.Instance.UpdateScore(currentScore);
         CheckWinCondition();
@@ -244,9 +306,13 @@ public class GameManager : MonoBehaviour
 
     private void HandleWin()
     {
-        int baseScore = currentScore;
-        int timeBonus = Mathf.FloorToInt(currentTimer * 100); 
-        int totalNewScore = baseScore + timeBonus;
+        float baseScore = currentScore;
+        
+        // NEW SCORING: 50 Points + Time Remaining (Seconds + Decimals)
+        float loopClearBonus = 0f;
+        float timeBonus = currentTimer; 
+        
+        float totalNewScore = baseScore + loopClearBonus + timeBonus;
         currentScore = totalNewScore;
 
         // Save Data
@@ -257,11 +323,12 @@ public class GameManager : MonoBehaviour
         currentState = GameState.LoopTransition;
         GameEvents.OnStateChanged?.Invoke(GameState.LoopTransition);
         
-        // CINEMATIC WIN SEQUENCE: Slow mo → Shutters → Score
-        StartCoroutine(CinematicWinSequence(baseScore, currentTimer, totalNewScore));
+        // CINEMATIC WIN SEQUENCE
+        string debuffName = (currentActiveDebuff != null) ? currentActiveDebuff.debuffName.ToUpper() : "";
+        StartCoroutine(CinematicWinSequence(baseScore, currentTimer, totalNewScore, debuffName));
     }
 
-    private IEnumerator CinematicWinSequence(int baseScore, float timer, int totalScore)
+    private IEnumerator CinematicWinSequence(float baseScore, float timer, float totalScore, string debuffName)
     {
         // 1. SLOW MOTION
         Time.timeScale = slowMoTimeScale;
@@ -288,7 +355,7 @@ public class GameManager : MonoBehaviour
         
         if (GameUI.Instance != null) 
         {
-            GameUI.Instance.ShowWinSummary(baseScore, timer, totalScore);
+            GameUI.Instance.ShowWinSummary(baseScore, timer, totalScore, debuffName);
         }
         
         GameEvents.OnLoopCompleted?.Invoke();
@@ -329,12 +396,12 @@ public class GameManager : MonoBehaviour
         Time.fixedDeltaTime = 0.02f;
         
         // 5. CALCULATE HIGH SCORE
-        int savedHighScore = PlayerPrefs.GetInt("HighScore", 0);
+        float savedHighScore = PlayerPrefs.GetFloat("HighScore", 0f);
         bool isNewRecord = false;
         if (currentScore > savedHighScore)
         {
             savedHighScore = currentScore;
-            PlayerPrefs.SetInt("HighScore", savedHighScore);
+            PlayerPrefs.SetFloat("HighScore", savedHighScore);
             PlayerPrefs.Save();
             isNewRecord = true;
         }
@@ -368,7 +435,10 @@ public class GameManager : MonoBehaviour
 
         if (currentTimer > 0 && player.gameObject.activeSelf)
         {
-            currentTimer -= Time.deltaTime; 
+            float dt = Time.deltaTime;
+            if (currentActiveDebuff != null) dt *= currentActiveDebuff.timerSpeedMultiplier;
+            
+            currentTimer -= dt; 
             if (GameUI.Instance != null) GameUI.Instance.UpdateTimer(currentTimer);
             if (currentTimer <= 0)
             {

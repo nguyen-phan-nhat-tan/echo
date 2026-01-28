@@ -23,15 +23,18 @@ public class GameUI : MonoBehaviour
 
     [Header("Pause Menu")]
     public CanvasGroup pauseGroup; 
+    public GameObject settingsMenu; // NEW
 
     [Header("Shutter Content - Intro")]
     public TextMeshProUGUI introLoopText;
     public TextMeshProUGUI introWeaponText;
+    public TextMeshProUGUI introDebuffText; // NEW
 
     [Header("Shutter Content - Win Summary")]
     public TextMeshProUGUI summaryScoreText; 
     public TextMeshProUGUI summaryTimeText;  
     public TextMeshProUGUI summaryTotalText; 
+    public TextMeshProUGUI summaryDebuffText; // NEW
     public GameObject nextLoopButton;
 
     [Header("Shutter Content - Game Over")]
@@ -71,6 +74,7 @@ public class GameUI : MonoBehaviour
         // Hide Intro
         if (introLoopText) introLoopText.gameObject.SetActive(false);
         if (introWeaponText) introWeaponText.gameObject.SetActive(false);
+        if (introDebuffText) introDebuffText.gameObject.SetActive(false); // NEW
         
         // Hide Summary
         if (summaryScoreText) summaryScoreText.gameObject.SetActive(false);
@@ -102,6 +106,7 @@ public class GameUI : MonoBehaviour
             case ShutterState.Intro:
                 if (introLoopText) introLoopText.gameObject.SetActive(true);
                 if (introWeaponText) introWeaponText.gameObject.SetActive(true);
+                if (introDebuffText) introDebuffText.gameObject.SetActive(true); // NEW
                 break;
             case ShutterState.Summary:
                 if (summaryScoreText) summaryScoreText.gameObject.SetActive(true);
@@ -147,6 +152,9 @@ public class GameUI : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
 
+        // Ensure settings are closed
+        if (settingsMenu != null) settingsMenu.SetActive(false);
+
         if (pauseGroup)
         {
             pauseGroup.DOFade(0f, 0.2f).SetUpdate(true).SetLink(pauseGroup.gameObject).OnComplete(() => 
@@ -158,6 +166,14 @@ public class GameUI : MonoBehaviour
 
         if (pauseButton) pauseButton.SetActive(true);
         GameManager.Instance.TogglePause();
+    }
+    
+    public void OnSettingsPressed()
+    {
+        if (settingsMenu != null)
+        {
+            settingsMenu.SetActive(true);
+        }
     }
 
     public void OnHomePressed()
@@ -191,13 +207,28 @@ public class GameUI : MonoBehaviour
     }
 
     public void UpdateLoop(int loopCount) { }
-    public void UpdateScore(int score) { }
+    public void UpdateScore(float score) { }
 
     // --- INTRO (Shutters start CLOSED, show intro text, then OPEN) ---
-    public void ShowLoopStart(int loopCount, string weaponName, Action onIntroFinished)
+    public void ShowLoopStart(int loopCount, string weaponName, string debuffName, Action onIntroFinished)
     {
         if (introLoopText) introLoopText.text = "LOOP " + loopCount;
         if (introWeaponText) introWeaponText.text = "WEAPON: " + weaponName;
+        
+        // Handle Debuff Text
+        if (introDebuffText)
+        {
+            if (!string.IsNullOrEmpty(debuffName))
+            {
+                introDebuffText.text = "CLAUSE: " + debuffName;
+                introDebuffText.gameObject.SetActive(true);
+            }
+            else
+            {
+                introDebuffText.text = "";
+                introDebuffText.gameObject.SetActive(false);
+            }
+        }
         
         // Shutters are already closed from Awake or previous transition
         ShowShutterContent(ShutterState.Intro);
@@ -213,10 +244,15 @@ public class GameUI : MonoBehaviour
             introWeaponText.transform.localScale = Vector3.zero;
             introWeaponText.transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetDelay(0.5f);
         }
+        if (introDebuffText && introDebuffText.gameObject.activeSelf)
+        {
+            introDebuffText.transform.localScale = Vector3.zero;
+            introDebuffText.transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetDelay(0.7f); // Delay slightly more
+        }
         
         // Sequence: Show content, wait, then open shutters
         Sequence seq = DOTween.Sequence().SetLink(gameObject);
-        seq.AppendInterval(1.5f); // Show intro for 1.5s
+        seq.AppendInterval(1.8f); // Show intro slightly longer to read debuff
         seq.AppendCallback(() => {
             if (shutterContent) shutterContent.DOFade(0f, 0.2f);
         });
@@ -230,22 +266,39 @@ public class GameUI : MonoBehaviour
     }
 
     // --- WIN SUMMARY (Close shutters, show summary) ---
-    public void ShowWinSummary(int baseScore, float timeLeft, int totalScore)
+    public void ShowWinSummary(float baseScore, float timeLeft, float totalScore, string debuffName)
     {
         if (pauseButton) pauseButton.SetActive(false);
 
         // Shutters should already be closing (called from GameManager)
         // Wait a moment then show content
         DOVirtual.DelayedCall(0.5f, () => {
-            if (summaryScoreText) summaryScoreText.text = baseScore.ToString("N0");
-            if (summaryTimeText) summaryTimeText.text = "+" + (timeLeft * 100).ToString("N0"); 
+             // Summary: Show Base (F0?) or F2? User cares about decimal on total.
+            if (summaryScoreText) summaryScoreText.text = baseScore.ToString("F2");
+            if (summaryTimeText) summaryTimeText.text = "+" + timeLeft.ToString("F2"); 
+            
+            // SHOW DEBUFF IF EXISTS
+            if (summaryDebuffText)
+            {
+                if (!string.IsNullOrEmpty(debuffName))
+                {
+                    summaryDebuffText.text = "<color=red>ACTIVE CLAUSE:</color> " + debuffName;
+                    summaryDebuffText.gameObject.SetActive(true);
+                }
+                else
+                {
+                    summaryDebuffText.gameObject.SetActive(false);
+                }
+            }
+            
             if (summaryTotalText) summaryTotalText.text = "CALCULATING...";
             
             ShowShutterContent(ShutterState.Summary);
 
             if (summaryTotalText)
             {
-                DOTween.To(() => baseScore, x => summaryTotalText.text = x.ToString("N0"), totalScore, 1f)
+                // Tween Float
+                DOTween.To(() => baseScore, x => summaryTotalText.text = x.ToString("F2"), totalScore, 1f)
                     .SetDelay(0.5f) 
                     .SetEase(Ease.OutExpo)
                     .SetUpdate(true) 
@@ -260,7 +313,7 @@ public class GameUI : MonoBehaviour
     }
     
     // --- GAME OVER (Close shutters, show game over) ---
-    public void ShowGameOver(int totalScore, int loopsSurvived, int highScore, bool isNewRecord)
+    public void ShowGameOver(float totalScore, int loopsSurvived, float highScore, bool isNewRecord)
     {
         if (pauseButton) pauseButton.SetActive(false);
 
@@ -270,7 +323,7 @@ public class GameUI : MonoBehaviour
         DOVirtual.DelayedCall(0.5f, () => {
             if (finalScoreText != null)
             {
-                string textDisplay = "SCORE: " + totalScore.ToString("N0");
+                string textDisplay = "SCORE: " + totalScore.ToString("F2");
                 if (isNewRecord) textDisplay += " <color=yellow>(NEW!)</color>";
                 finalScoreText.text = textDisplay;
             }
@@ -318,11 +371,23 @@ public class GameUI : MonoBehaviour
         if (bottomShutter) bottomShutter.DOAnchorPosY(-bottomShutter.rect.height, 0.7f).SetEase(Ease.InExpo);
     }
     
-    public void ScreenFlash(Color color, float duration = 0.3f)
+    public void ToggleFog(bool enable)
     {
-        if (screenFlash == null) return;
-        screenFlash.color = color;
-        screenFlash.DOFade(0f, duration).SetUpdate(true);
+        // Reuse ScreenFlash or add a dedicated Vignette Image
+        if (screenFlash != null)
+        {
+            if (enable)
+            {
+                screenFlash.color = new Color(0, 0, 0, 0.9f); // Dark Fog
+                screenFlash.DOFade(0.85f, 1f).SetUpdate(true); // Fade to 85% opacity black
+            }
+            else
+            {
+                // Reset if not impactful flash
+                if (screenFlash.color.a > 0 && screenFlash.color == new Color(0,0,0, 0.9f)) 
+                    screenFlash.DOFade(0f, 0.5f);
+            }
+        }
     }
 
     public void OnNextLoopPressed()

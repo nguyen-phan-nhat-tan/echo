@@ -8,6 +8,8 @@ public class MainMenuManager : MonoBehaviour
     [Header("UI References")]
     public TextMeshProUGUI highScoreText;
     public CanvasGroup mainGroup;
+    public GameObject settingsMenu; // NEW: Settings Panel Reference
+
     
     [Header("Scene Configuration")]
     // IMPORTANT: Make sure your Game Scene is added to File -> Build Settings
@@ -57,6 +59,16 @@ public class MainMenuManager : MonoBehaviour
     private void LoadGameScene()
     {
         SceneManager.LoadScene(gameSceneName);
+    }
+    
+    public void OnSettingsPressed()
+    {
+        if (settingsMenu != null)
+        {
+            settingsMenu.SetActive(true);
+            // Optionally hide main buttons? 
+            // For now, Settings acts as an overlay.
+        }
     }
     
     // Link this to your "QUIT" Button
