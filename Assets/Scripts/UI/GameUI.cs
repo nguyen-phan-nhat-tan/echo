@@ -18,6 +18,18 @@ public class GameUI : MonoBehaviour
     [Header("Cinematic Shutters")]
     public RectTransform topShutter;
     public RectTransform bottomShutter;
+    
+    private bool hasInitializedColor = false;
+
+    void Start()
+    {
+         // Redundant check to ensure we capture the Inspector color
+         if (!hasInitializedColor && timerText != null)
+         {
+             normalColor = timerText.color;
+             hasInitializedColor = true;
+         }
+    }
     public CanvasGroup shutterContent;
     public Image screenFlash; // Full-screen white Image for impact flash
 
@@ -220,7 +232,7 @@ public class GameUI : MonoBehaviour
         {
             if (!string.IsNullOrEmpty(debuffName))
             {
-                introDebuffText.text = "CLAUSE: " + debuffName;
+                introDebuffText.text = "DEBUFF: " + debuffName;
                 introDebuffText.gameObject.SetActive(true);
             }
             else
@@ -282,7 +294,7 @@ public class GameUI : MonoBehaviour
             {
                 if (!string.IsNullOrEmpty(debuffName))
                 {
-                    summaryDebuffText.text = "<color=red>ACTIVE CLAUSE:</color> " + debuffName;
+                    summaryDebuffText.text = "<color=red>ACTIVE DEBUFF:</color> " + debuffName;
                     summaryDebuffText.gameObject.SetActive(true);
                 }
                 else
@@ -324,7 +336,7 @@ public class GameUI : MonoBehaviour
             if (finalScoreText != null)
             {
                 string textDisplay = "SCORE: " + totalScore.ToString("F2");
-                if (isNewRecord) textDisplay += " <color=yellow>(NEW!)</color>";
+                if (isNewRecord) textDisplay += "\n <color=yellow>(NEW!)</color>";
                 finalScoreText.text = textDisplay;
             }
 

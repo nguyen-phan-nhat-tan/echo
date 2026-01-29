@@ -196,7 +196,18 @@ public class PlayerController : MonoBehaviour
             else
             {
                 // STANDARD: Direct position move (snappy)
-                rb.MovePosition(rb.position + targetVel * Time.fixedDeltaTime);
+                Vector2 nextPos = rb.position + targetVel * Time.fixedDeltaTime;
+                
+                // CLAMP TO MAP
+                if (GameManager.Instance != null)
+                {
+                    Vector2 halfMap = GameManager.Instance.mapSize / 2f;
+                    nextPos.x = Mathf.Clamp(nextPos.x, -halfMap.x, halfMap.x);
+                    nextPos.y = Mathf.Clamp(nextPos.y, -halfMap.y, halfMap.y);
+                }
+
+                rb.MovePosition(nextPos);
+                
                 // Ensure physics velocity doesn't fight MovePosition
                 rb.linearVelocity = Vector2.zero;
             }
@@ -408,7 +419,7 @@ public class PlayerController : MonoBehaviour
         // Visual Feedback (Transparency)
         if (weaponRenderer != null) 
         {
-             SpriteRenderer bodySr = GetComponent<SpriteRenderer>();
+             SpriteRenderer bodySr = GetComponentInChildren<SpriteRenderer>();
              if (bodySr != null) bodySr.DOFade(0.4f, 0.1f);
              if (weaponRenderer != null) weaponRenderer.DOFade(0.4f, 0.1f);
         }
@@ -418,7 +429,7 @@ public class PlayerController : MonoBehaviour
         // Restore
         if (col != null) col.isTrigger = false;
         
-        SpriteRenderer bodySrEnd = GetComponent<SpriteRenderer>();
+        SpriteRenderer bodySrEnd = GetComponentInChildren<SpriteRenderer>();
         if (bodySrEnd != null) bodySrEnd.DOFade(1f, 0.1f);
         if (weaponRenderer != null) weaponRenderer.DOFade(1f, 0.1f);
             

@@ -753,7 +753,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 158.7, y: -99.3}
+  m_AnchoredPosition: {x: 158.83, y: -65.5}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &921518005
@@ -1236,6 +1236,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   highScoreText: {fileID: 921518006}
   mainGroup: {fileID: 1827902373}
+  settingsMenu: {fileID: 0}
   gameSceneName: GameScene
 --- !u!4 &1362698299
 Transform:

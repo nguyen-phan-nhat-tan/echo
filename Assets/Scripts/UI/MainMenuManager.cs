@@ -22,14 +22,12 @@ public class MainMenuManager : MonoBehaviour
         Time.timeScale = 1f;
 
         // 1. Load and Display High Score
-        int bestScore = PlayerPrefs.GetInt("HighScore", 0);
+        float bestScore = PlayerPrefs.GetFloat("HighScore", 0f); // Fixed: Read as Float
         
         if (highScoreText != null)
         {
-            if (bestScore > 0)
-                highScoreText.text = "HIGH SCORE: " + bestScore.ToString("N0");
-            else
-                highScoreText.text = ""; // Hide if no score yet
+            // Always show score, even if 0
+            highScoreText.text = bestScore.ToString("F2");
         }
             
         // 2. Intro Animation (Smooth Fade In)

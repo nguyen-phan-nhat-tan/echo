@@ -24,7 +24,7 @@ public class EchoController : MonoBehaviour
 
     void Awake()
     {
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         col = GetComponent<Collider2D>();
         originalColor = spriteRenderer.color;
         initialScale = transform.localScale; // Capture inspector scale

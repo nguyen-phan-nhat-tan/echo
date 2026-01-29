@@ -15,9 +15,10 @@ public class GameManager : MonoBehaviour
     public GameObject mainCanvas; // NEW: Reference to enable Canvas
     
     [Header("Spawn Settings")]
-    public Vector2 mapSize = new Vector2(25f, 25f); 
+    public Vector2 mapSize = new Vector2(70f, 70f); 
     public float minDistanceFromCenter = 3f;        
-    public float minDistanceFromHistory = 3f;       
+    public float minDistanceFromHistory = 3f;
+    public float minDistanceFromBoundary = 5f; // New Constraint       
     
     [Header("Game State")]
     public float baseLoopDuration = 15f; 
@@ -85,6 +86,7 @@ public class GameManager : MonoBehaviour
     void Start() 
     { 
         if (mainCanvas != null) mainCanvas.SetActive(true);
+        
         StartNewLoop(); 
     }
 
@@ -452,8 +454,12 @@ public class GameManager : MonoBehaviour
         int maxAttempts = 100; 
         for (int i = 0; i < maxAttempts; i++)
         {
-            float randomX = Random.Range(-mapSize.x / 2, mapSize.x / 2);
-            float randomY = Random.Range(-mapSize.y / 2, mapSize.y / 2);
+            // Apply Boundary Padding
+            float boundsX = (mapSize.x / 2f) - minDistanceFromBoundary;
+            float boundsY = (mapSize.y / 2f) - minDistanceFromBoundary;
+            
+            float randomX = Random.Range(-boundsX, boundsX);
+            float randomY = Random.Range(-boundsY, boundsY);
             Vector2 candidatePos = new Vector2(randomX, randomY);
 
             if (Vector2.Distance(candidatePos, Vector2.zero) < minDistanceFromCenter) continue; 
