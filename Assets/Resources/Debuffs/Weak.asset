@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: Weak
   m_EditorClassIdentifier: Assembly-CSharp::DebuffData
   debuffName: Weak
-  description: A negative effect.
-  moveSpeedMultiplier: 0.8
-  fireRateMultiplier: 0.8
-  dashCooldownMultiplier: 0.8
+  description: All Stats Reduced
+  moveSpeedMultiplier: 0.6
+  fireRateMultiplier: 0.6
+  dashCooldownMultiplier: 0.6
   timerSpeedMultiplier: 1
   drift: 0
   fog: 0

@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: Sluggish
   m_EditorClassIdentifier: Assembly-CSharp::DebuffData
   debuffName: Sluggish
-  description: A negative effect.
-  moveSpeedMultiplier: 0.6
+  description: Movement Slowed
+  moveSpeedMultiplier: 0.4
   fireRateMultiplier: 1
   dashCooldownMultiplier: 1
   timerSpeedMultiplier: 1

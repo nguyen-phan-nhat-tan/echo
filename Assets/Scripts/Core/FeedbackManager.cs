@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
-using MoreMountains.Feedbacks; 
+using MoreMountains.Feedbacks;
+using MoreMountains.FeedbacksForThirdParty;
 
 public class FeedbackManager : MonoBehaviour
 {
@@ -8,12 +9,18 @@ public class FeedbackManager : MonoBehaviour
     public MMF_Player playerDashFeedback;  
 
     [Header("Game Feedbacks")]
+    [Range(0f, 1f)] public float globalSFXVolume = 0.5f; // New Global Volume Slider
     public MMF_Player enemyDeathFeedback; 
     public MMF_Player loopWinFeedback;     
     public MMF_Player gameOverFeedback;    
     public MMF_Player newLoopFeedback;
     public MMF_Player rewindFeedback;
     public MMF_Player impactFeedback; // Heavy chromatic aberration burst
+
+    [Header("Impact Amplification")]
+    public float impactChromaticAberrationMultiplier = 2f;
+    public float impactLensDistortionMultiplier = 2f;
+    public float impactColorGradingMultiplier = 2f;
     
     void OnEnable()
     {
@@ -26,6 +33,41 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnBulletImpact += OnBulletImpact;
         GameEvents.OnEnemyExplosion += OnEnemyExplosion;
         GameEvents.OnStateChanged += OnGameStateChanged;
+    }
+
+    void Start()
+    {
+        ApplyImpactMultipliers();
+    }
+
+    private void ApplyImpactMultipliers()
+    {
+        if (impactFeedback != null)
+        {
+            // Chromatic Aberration
+            var chromatic = impactFeedback.GetFeedbackOfType<MMF_ChromaticAberration>();
+            if (chromatic != null)
+            {
+                chromatic.RemapIntensityOne *= impactChromaticAberrationMultiplier;
+            }
+
+            // Lens Distortion
+            var lensDistortion = impactFeedback.GetFeedbackOfType<MMF_LensDistortion>();
+            if (lensDistortion != null)
+            {
+                lensDistortion.RemapIntensityOne *= impactLensDistortionMultiplier;
+            }
+
+            // Color Grading
+            var colorGrading = impactFeedback.GetFeedbackOfType<MMF_ColorGrading>();
+            if (colorGrading != null)
+            {
+                // Multiply relevant intensity parameters
+                colorGrading.RemapPostExposureOne *= impactColorGradingMultiplier;
+                colorGrading.RemapSaturationOne *= impactColorGradingMultiplier;
+                colorGrading.RemapContrastOne *= impactColorGradingMultiplier;
+            }
+        }
     }
 
     void OnDisable()
@@ -64,9 +106,9 @@ public class FeedbackManager : MonoBehaviour
             {
                 cachedShootSound.Sfx = clipToPlay;
                 
-                // Safety: Ensure settings are correct for 2D
-                cachedShootSound.MinVolume = 1f;
-                cachedShootSound.MaxVolume = 1f;
+                // Safety: Ensure settings are correct for 2D, APPLIED GLOBAL VOLUME
+                cachedShootSound.MinVolume = 1f * globalSFXVolume;
+                cachedShootSound.MaxVolume = 1f * globalSFXVolume;
             }
 
             // 3. Play

@@ -10,10 +10,18 @@ public class GameUI : MonoBehaviour
     public static GameUI Instance;
 
     [Header("HUD")]
-    public TextMeshProUGUI timerText; 
+    public TextMeshProUGUI timerText;
+    public TextMeshProUGUI scoreText; // NEW: HUD Score
+    public TextMeshProUGUI echoCountText; // NEW: Remaining Echoes
+    public TextMeshProUGUI activeDebuffHUDText; 
     public Color warningColor = Color.red;
     public Color normalColor = Color.white;
     public GameObject pauseButton; 
+    public GameObject hudPanel; // NEW: Parent for HUD elements 
+
+    [Header("Win Visuals")]
+    public TextMeshProUGUI loopClearText; // NEW: CENTER "CLEAR"
+    public TextMeshProUGUI scoreBonusText; // NEW: Floating text for score addition
 
     [Header("Cinematic Shutters")]
     public RectTransform topShutter;
@@ -50,6 +58,7 @@ public class GameUI : MonoBehaviour
     public GameObject nextLoopButton;
 
     [Header("Shutter Content - Game Over")]
+    public TextMeshProUGUI gameOverTitleText; // NEW: The big title
     public TextMeshProUGUI finalScoreText;
     public TextMeshProUGUI finalLoopText; 
     public GameObject newRecordVisual;
@@ -97,9 +106,14 @@ public class GameUI : MonoBehaviour
         // Hide Game Over
         if (finalScoreText) finalScoreText.gameObject.SetActive(false);
         if (finalLoopText) finalLoopText.gameObject.SetActive(false);
+        if (gameOverTitleText) gameOverTitleText.gameObject.SetActive(false); // NEW
         if (newRecordVisual) newRecordVisual.SetActive(false);
         if (retryButton) retryButton.SetActive(false);
         if (homeButton) homeButton.SetActive(false);
+        
+        // Hide Win Visuals (New)
+        if (loopClearText) loopClearText.gameObject.SetActive(false);
+        if (scoreBonusText) scoreBonusText.gameObject.SetActive(false);
         
         if (shutterContent)
         {
@@ -127,6 +141,7 @@ public class GameUI : MonoBehaviour
                 if (nextLoopButton) nextLoopButton.SetActive(true);
                 break;
             case ShutterState.GameOver:
+                if (gameOverTitleText) gameOverTitleText.gameObject.SetActive(true); // NEW
                 if (finalScoreText) finalScoreText.gameObject.SetActive(true);
                 if (finalLoopText) finalLoopText.gameObject.SetActive(true);
                 if (retryButton) retryButton.SetActive(true);
@@ -199,9 +214,9 @@ public class GameUI : MonoBehaviour
     {
         if (timerText == null) return;
 
-        int seconds = Mathf.FloorToInt(timeRemaining % 60F);
+        int seconds = Mathf.FloorToInt(timeRemaining);
         int milliseconds = Mathf.FloorToInt((timeRemaining * 100) % 100);
-        timerText.text = string.Format("{0:00}:{1:00}", seconds, milliseconds); 
+        timerText.text = string.Format("{0:00}.{1:00}", seconds, milliseconds); 
 
         if (timeRemaining <= 10f && timerText.color != warningColor)
         {
@@ -219,10 +234,103 @@ public class GameUI : MonoBehaviour
     }
 
     public void UpdateLoop(int loopCount) { }
-    public void UpdateScore(float score) { }
+    
+    public void UpdateScore(float score) 
+    { 
+        if (scoreText != null) scoreText.text = score.ToString("F2"); // Display as Int during play? Or F0.
+    }
 
+    public void UpdateDebuffHUD(string debuffName)
+    {
+        if (activeDebuffHUDText != null)
+        {
+            if (!string.IsNullOrEmpty(debuffName))
+            {
+                activeDebuffHUDText.text = "CAUTION: " + debuffName;
+                activeDebuffHUDText.gameObject.SetActive(true);
+                // Optional: Pulse animation
+                activeDebuffHUDText.transform.DOKill();
+                activeDebuffHUDText.transform.localScale = Vector3.one;
+                activeDebuffHUDText.transform.DOScale(1.1f, 1f).SetLoops(-1, LoopType.Yoyo).SetLink(activeDebuffHUDText.gameObject);
+            }
+            else
+            {
+                activeDebuffHUDText.gameObject.SetActive(false);
+            }
+        }
+    }
+
+    [Header("Win Animation Settings")]
+    public float clearTextScaleDuration = 2.0f;
+    public Ease clearTextEase = Ease.OutBack;
+    public float clearTextStayDuration = 3.0f;
+
+    // --- NEW: Loop Clear Animation (No Shutters) ---
+    public void ShowLoopClear(float baseScore, float bonusScore, float totalScore)
+    {
+        Debug.Log($"[GameUI] ShowLoopClear | Scale: {clearTextScaleDuration}, Ease: {clearTextEase}, Stay: {clearTextStayDuration}");
+
+        // 1. CLEAR Text
+        if (loopClearText != null)
+        {
+            // Kill previous tweens to prevent conflicts
+            loopClearText.transform.DOKill();
+            loopClearText.DOKill();
+
+            loopClearText.gameObject.SetActive(true);
+            loopClearText.alpha = 1f; 
+            loopClearText.transform.localScale = Vector3.zero;
+            
+            // Scale Up
+            loopClearText.transform
+                .DOScale(1f, clearTextScaleDuration)
+                .SetEase(clearTextEase)
+                .SetUpdate(true);
+            
+            // Fade Out after delay
+            loopClearText
+                .DOFade(0f, 0.5f)
+                .SetDelay(clearTextStayDuration)
+                .SetUpdate(true)
+                .OnComplete(()=> loopClearText.gameObject.SetActive(false));
+        }
+
+        // 2. Score Addition Animation
+        if (scoreBonusText != null && scoreText != null)
+        {
+            scoreBonusText.text = bonusScore.ToString("F2");
+            scoreBonusText.gameObject.SetActive(true);
+            scoreBonusText.alpha = 1f;
+            
+            // Force Start Position: 40 units BELOW the score text
+            // We use world position offset since they might have different parents
+            scoreBonusText.transform.position = scoreText.transform.position + (Vector3.down * 40f); 
+            
+            Sequence seq = DOTween.Sequence().SetUpdate(true);
+            
+            seq.AppendInterval(0.5f); 
+            
+            // Slide Up TO the ScoreText position & Fade Out
+            seq.Append(scoreBonusText.transform.DOMove(scoreText.transform.position, 1.5f).SetEase(Ease.OutCubic));
+            seq.Join(scoreBonusText.DOFade(0f, 1.0f).SetDelay(0.5f)); // Start fading halfway through move
+            
+            // Count Up Main Score
+            seq.InsertCallback(1.5f, () => {
+                scoreBonusText.gameObject.SetActive(false);
+                
+                DOTween.To(() => baseScore, x => scoreText.text = x.ToString("F2"), totalScore, 1.0f) // Slower count up
+                    .SetEase(Ease.OutExpo)
+                    .SetUpdate(true)
+                    .SetLink(scoreText.gameObject);
+                    
+                // Pulse Score
+                scoreText.transform.DOPunchScale(Vector3.one * 0.3f, 0.5f).SetUpdate(true);
+            });
+        }
+    }
+    
     // --- INTRO (Shutters start CLOSED, show intro text, then OPEN) ---
-    public void ShowLoopStart(int loopCount, string weaponName, string debuffName, Action onIntroFinished)
+    public void ShowLoopStart(int loopCount, string weaponName, string debuffName, string debuffDesc, Action onIntroFinished)
     {
         if (introLoopText) introLoopText.text = "LOOP " + loopCount;
         if (introWeaponText) introWeaponText.text = "WEAPON: " + weaponName;
@@ -232,7 +340,7 @@ public class GameUI : MonoBehaviour
         {
             if (!string.IsNullOrEmpty(debuffName))
             {
-                introDebuffText.text = "DEBUFF: " + debuffName;
+                introDebuffText.text = "DEBUFF: " + debuffName + "\n<size=70%>" + debuffDesc + "</size>";
                 introDebuffText.gameObject.SetActive(true);
             }
             else
@@ -271,6 +379,7 @@ public class GameUI : MonoBehaviour
         seq.AppendInterval(0.3f);
         seq.AppendCallback(() => {
             OpenShutters();
+            if (hudPanel) hudPanel.SetActive(true); // Re-enable HUD
             if (pauseButton) pauseButton.SetActive(true);
         });
         seq.AppendInterval(0.7f); // Wait for shutters to open
@@ -328,16 +437,43 @@ public class GameUI : MonoBehaviour
     public void ShowGameOver(float totalScore, int loopsSurvived, float highScore, bool isNewRecord)
     {
         if (pauseButton) pauseButton.SetActive(false);
+        
+        // HIDE HUD PANEL
+        if (hudPanel) hudPanel.SetActive(false);
+        // Fallback for elements if they are outside panel
+        if(timerText) timerText.gameObject.SetActive(false); // Can remove if inside panel, kept for safety
+        if(scoreText) scoreText.gameObject.SetActive(false);
+        if(echoCountText) echoCountText.gameObject.SetActive(false);
+        if(activeDebuffHUDText) activeDebuffHUDText.gameObject.SetActive(false);
 
-        // Close shutters first
-        CloseShutters();
+        // CloseShutters(0.5f, false); // DISABLED as per User Request
         
         DOVirtual.DelayedCall(0.5f, () => {
+            if (pauseButton) pauseButton.SetActive(false); // Ensure hidden
+            ShowShutterContent(ShutterState.GameOver);
+
+            // Elastic Text Animation for Title (match Loop Clear style)
+            if (gameOverTitleText != null)
+            {
+                gameOverTitleText.transform.localScale = Vector3.zero;
+                gameOverTitleText.transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetUpdate(true);
+            }
+
+            // Animate Score Counting like Win Screen
             if (finalScoreText != null)
             {
-                string textDisplay = "SCORE: " + totalScore.ToString("F2");
-                if (isNewRecord) textDisplay += "\n <color=yellow>(NEW!)</color>";
-                finalScoreText.text = textDisplay;
+                // Init at 0
+                finalScoreText.text = "SCORE: 0.00"; 
+                finalScoreText.transform.localScale = Vector3.zero; // Start invisible
+                
+                // Pop In
+                finalScoreText.transform.DOScale(1f, 0.5f).SetEase(Ease.OutBack).SetDelay(0.2f).SetUpdate(true);
+                
+                DOTween.To(() => 0f, x => {
+                    string display = "SCORE: " + x.ToString("F2");
+                    if (isNewRecord) display += "\n <color=yellow>(NEW!)</color>";
+                    finalScoreText.text = display;
+                }, totalScore, 1.5f).SetEase(Ease.OutExpo).SetDelay(0.2f).SetUpdate(true);
             }
 
             if (finalLoopText != null) finalLoopText.text = "LOOPS: " + loopsSurvived;
@@ -346,10 +482,8 @@ public class GameUI : MonoBehaviour
             {
                 newRecordVisual.SetActive(isNewRecord);
                 if(isNewRecord)
-                    newRecordVisual.transform.DOScale(1.2f, 0.5f).SetLoops(-1, LoopType.Yoyo).SetLink(newRecordVisual);
+                    newRecordVisual.transform.DOScale(1.2f, 0.5f).SetLoops(-1, LoopType.Yoyo).SetLink(newRecordVisual).SetUpdate(true);
             }
-            
-            ShowShutterContent(ShutterState.GameOver);
         });
     }
 
@@ -359,18 +493,16 @@ public class GameUI : MonoBehaviour
     }
 
     // --- SHUTTER CONTROLS ---
-    public void CloseShutters(bool impactful = true)
+    public void CloseShutters(float duration, bool impactFlash)
     {
         // Screen flash for impact
-        if (impactful && screenFlash != null)
+        if (impactFlash && screenFlash != null)
         {
             screenFlash.color = new Color(1, 1, 1, 0.8f);
             screenFlash.DOFade(0f, 0.3f).SetUpdate(true);
         }
         
-        // Fast slam (no overshoot)
-        float duration = impactful ? 0.3f : 0.5f;
-        Ease ease = impactful ? Ease.OutQuad : Ease.OutExpo;
+        Ease ease = impactFlash ? Ease.OutQuad : Ease.OutExpo;
         
         if (topShutter) topShutter.DOAnchorPosY(0, duration).SetEase(ease).SetUpdate(true);
         if (bottomShutter) bottomShutter.DOAnchorPosY(0, duration).SetEase(ease).SetUpdate(true);
@@ -407,5 +539,13 @@ public class GameUI : MonoBehaviour
         HideSummary();
         if(GameManager.Instance != null)
             GameManager.Instance.ConfirmNextLoop();
+    }
+
+    public void UpdateEchoCount(int count)
+    {
+        if (echoCountText != null)
+        {
+            echoCountText.text = $"{count} REMAINING";
+        }
     }
 }

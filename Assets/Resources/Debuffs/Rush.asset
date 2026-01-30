@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Rush
   m_EditorClassIdentifier: Assembly-CSharp::DebuffData
   debuffName: Rush
-  description: A negative effect.
+  description: Hurry up
   moveSpeedMultiplier: 1
   fireRateMultiplier: 1
   dashCooldownMultiplier: 1

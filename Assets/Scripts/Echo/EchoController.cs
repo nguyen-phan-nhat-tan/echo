@@ -162,17 +162,18 @@ public class EchoController : MonoBehaviour
                  // Echoes follow frame data rotation, but for the Ring pattern we just blast 360 relative to up.
                  Quaternion rotation = Quaternion.Euler(0f, 0f, angle - 90f); 
 
-                 GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, rotation);
+                 // FIXED: Spawn "EnemyBullet" directly
+                 GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool("EnemyBullet", firePoint.position, rotation);
                  
-                 // Echo Specific: Convert to Enemy Bullet
                  if (bulletObj != null)
                  {
                      Bullet bulletScript = bulletObj.GetComponent<Bullet>();
                      if (bulletScript != null)
                      {
                          bulletScript.Initialize(currentWeapon);
-                         bulletScript.isEnemyBullet = true; // Override
-                         bulletObj.tag = "EnemyBullet";     // Override
+                         bulletScript.isEnemyBullet = true; 
+                         // No SetColor needed, prefab should be Red
+                         bulletObj.tag = "EnemyBullet";     
                      }
                  }
              }
@@ -185,10 +186,9 @@ public class EchoController : MonoBehaviour
             float randomSpread = UnityEngine.Random.Range(-currentWeapon.spreadAngle / 2f, currentWeapon.spreadAngle / 2f);
             Quaternion finalRotation = baseRotation * Quaternion.Euler(0, 0, randomSpread);
             
-            // Spawn the bullet (using PlayerBullet prefab usually)
-            GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool(currentWeapon.bulletTag, firePoint.position, finalRotation);
+            // FIXED: Spawn "EnemyBullet" directly
+            GameObject bulletObj = ObjectPooler.Instance.SpawnFromPool("EnemyBullet", firePoint.position, finalRotation);
             
-            // Convert it to an "Enemy Bullet" so it doesn't hurt other Echoes (which are Tagged Enemy)
             if (bulletObj != null)
             {
                 Bullet bulletScript = bulletObj.GetComponent<Bullet>();
@@ -196,6 +196,7 @@ public class EchoController : MonoBehaviour
                 {
                     bulletScript.Initialize(currentWeapon);
                     bulletScript.isEnemyBullet = true; 
+                    // No SetColor needed
                     bulletObj.tag = "EnemyBullet"; 
                 }
             }
@@ -217,7 +218,10 @@ public class EchoController : MonoBehaviour
         
         spriteRenderer.DOKill();
         spriteRenderer.color = new Color(0.3f, 0f, 0f, 1f); 
-        spriteRenderer.DOFade(0.8f, 0.2f);
+        // Fade to 0 (Invisible) and deactivate
+        spriteRenderer.DOFade(0f, 0.3f).OnComplete(() => {
+            gameObject.SetActive(false);
+        });
         spriteRenderer.sortingOrder = -1; 
         col.enabled = false;
     }
