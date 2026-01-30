@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WeaponData
   weaponName: Spreadshooter
   weaponSprite: {fileID: 0}
-  fireRate: 1.2
+  fireRate: 3
   bulletCount: 5
   spreadAngle: 25
   burstCount: 1
@@ -27,4 +27,8 @@ MonoBehaviour:
   bulletSpeed: 15
   bulletTag: PlayerBullet
   shakeIntensity: 0.2
+  muzzleFlashPrefab: {fileID: 0}
+  bulletTrailPrefab: {fileID: 0}
+  wallHitPrefab: {fileID: 0}
+  enemyHitPrefab: {fileID: 0}
   shootClip: {fileID: 8300000, guid: c922c34f559ead440a273a13a924cfc7, type: 3}

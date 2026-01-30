@@ -41,6 +41,9 @@ public class PlayerController : MonoBehaviour
     [HideInInspector] public bool isDashing = false;
     private bool canControl = true;
     
+    [Header("Debug")]
+    public bool isInvincible = false;
+    
     // STAT MULTIPLIERS (Debuffs/Buffs)
     private float moveSpeedMult = 1f;
     private float fireRateMult = 1f;
@@ -439,6 +442,7 @@ public class PlayerController : MonoBehaviour
     void OnCollisionEnter2D(Collision2D collision)
     {
         if (isDashing) return;
+        if (isInvincible) return;
         if (collision.gameObject.CompareTag("Enemy"))
         {
             GameEvents.OnPlayerDeath?.Invoke();
@@ -448,6 +452,7 @@ public class PlayerController : MonoBehaviour
     void OnTriggerEnter2D(Collider2D other)
     {
         if (isDashing) return;
+        if (isInvincible) return;
         if (other.CompareTag("EnemyBullet"))
         {
             GameEvents.OnPlayerDeath?.Invoke(); 

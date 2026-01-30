@@ -282,9 +282,9 @@ public class VectorGrid : MonoBehaviour
 				m_InitialPosition = this.transform.localPosition;
 			}
 
-			// Reset the grid if the user has changed the dimensions
-            if(m_RenderMode != RenderMode.Sphere && m_VectorGridPoints != null &&
-			   (m_VectorGridPoints.GetLength(0) != m_GridWidth || m_VectorGridPoints.GetLength(1) != m_GridHeight))
+			// Reset the grid if the user has changed the dimensions or if it's null
+            if(m_RenderMode != RenderMode.Sphere && 
+               (m_VectorGridPoints == null || m_VectorGridPoints.GetLength(0) != m_GridWidth || m_VectorGridPoints.GetLength(1) != m_GridHeight))
 			{
 				InitGrid();
 			}
@@ -617,6 +617,8 @@ public class VectorGrid : MonoBehaviour
 	/// </summary>
 	void UpdateGrid()
 	{		
+		if (m_VectorGridPoints == null) return;
+
 		for (int x = 0; x < m_GridWidth; x++)
 		{
 			for (int y = 0; y < m_GridHeight; y++)

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Heavy
   m_EditorClassIdentifier: Assembly-CSharp::DebuffData
   debuffName: Heavy
-  description: A negative effect.
+  description: Less dashes for you
   moveSpeedMultiplier: 1
   fireRateMultiplier: 1
   dashCooldownMultiplier: 0.5

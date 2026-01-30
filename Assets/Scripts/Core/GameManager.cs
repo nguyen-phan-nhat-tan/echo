@@ -33,15 +33,29 @@ public class GameManager : MonoBehaviour
     [Header("Arsenal")]
     public List<WeaponData> availableWeapons;
     
-    [Header("Loop Transition Timing")]
-    public float winDelay = 1.0f;
+    [Header("Transition Settings")]
+    public TransitionSettings winSequenceSettings;
+    public TransitionSettings deathSequenceSettings;
+    
+    // Global Transition Settings
     public float autoAdvanceDelay = 3.0f;
     public float rewindDelay = 1.5f;
     
+    [System.Serializable]
+    public struct TransitionSettings
+    {
+        public float slowMoDuration; // 1.5s
+        public float impactDelay;    // 1.5s (Wait time before impact)
+        public float preShutterDelay; // 0.4s (Wait after impact before closing shutters)
+        public float shutterDuration; // 0.3s (How long shutters take to close)
+        public float postShutterDelay; // 0.4s (Wait after shutters close)
+        public float summaryDelay; // 1.0s (Wait before showing UI)
+    }
+
     [Header("Slow Motion Settings")]
     public float slowMoTimeScale = 0.3f;
-    public float slowMoDuration = 1.5f;
-    
+    // public float slowMoDuration = 1.5f; // Moved to Struct
+
     // DATA STORAGE
     private List<LoopData> allLoopDatas = new List<LoopData>(); 
     private List<GameObject> activeEchoes = new List<GameObject>();
@@ -60,6 +74,30 @@ public class GameManager : MonoBehaviour
         if (Instance == null) Instance = this; 
         else Destroy(gameObject);
         
+        // DEFAULT SETTINGS (Fallback if inspector is empty)
+        if (winSequenceSettings.slowMoDuration == 0)
+        {
+            winSequenceSettings = new TransitionSettings() {
+                slowMoDuration = 1.5f,
+                impactDelay = 1.5f,
+                preShutterDelay = 0.4f,
+                shutterDuration = 0.3f, // Fast Slam
+                postShutterDelay = 0.4f,
+                summaryDelay = 1.0f
+            };
+        }
+        if (deathSequenceSettings.slowMoDuration == 0)
+        {
+             deathSequenceSettings = new TransitionSettings() {
+                slowMoDuration = 1.5f,
+                impactDelay = 1.5f,
+                preShutterDelay = 0.4f,
+                shutterDuration = 0.3f, 
+                postShutterDelay = 0.4f,
+                summaryDelay = 1.0f
+            };
+        }
+
         // Auto-load debuffs if empty
         if (availableDebuffs == null || availableDebuffs.Count == 0)
         {
@@ -179,12 +217,15 @@ public class GameManager : MonoBehaviour
                 
                 GameUI.Instance.HideSummary();
                 string debuffName = (currentActiveDebuff != null) ? currentActiveDebuff.debuffName.ToUpper() : "";
+                string debuffDesc = (currentActiveDebuff != null) ? currentActiveDebuff.description : "";
                 
-                GameUI.Instance.ShowLoopStart(currentLoop, selectedWeapon.weaponName.ToUpper(), debuffName, () => 
+                GameUI.Instance.ShowLoopStart(currentLoop, selectedWeapon.weaponName.ToUpper(), debuffName, debuffDesc, () => 
                 {
                     currentState = GameState.Playing;
                     GameEvents.OnStateChanged?.Invoke(GameState.Playing);
                     playerRecorder.StartRecording();
+                    // Sync HUD Display once intro is done (or immediately if preferred, but intro handles shutters)
+                    GameUI.Instance.UpdateDebuffHUD(debuffName);
                 });
                 GameUI.Instance.UpdateLoop(currentLoop);
                 GameUI.Instance.UpdateTimer(currentTimer);
@@ -259,6 +300,9 @@ public class GameManager : MonoBehaviour
                 activeEchoes.Add(newEcho);
             }
         }
+        
+        if (GameUI.Instance != null)
+            GameUI.Instance.UpdateEchoCount(activeEchoes.Count);
     }
 
     private void HandleEnemyDeath()
@@ -269,6 +313,7 @@ public class GameManager : MonoBehaviour
         // currentScore += 100;
         
         if (GameUI.Instance != null) GameUI.Instance.UpdateScore(currentScore);
+        
         CheckWinCondition();
     }
 
@@ -286,6 +331,9 @@ public class GameManager : MonoBehaviour
         {
             if (echo != null && echo.CompareTag("Enemy")) enemyCount++;
         }
+        
+        if (GameUI.Instance != null)
+            GameUI.Instance.UpdateEchoCount(enemyCount);
 
         if (enemyCount <= 0) EndLoop(true);
     }
@@ -332,36 +380,44 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator CinematicWinSequence(float baseScore, float timer, float totalScore, string debuffName)
     {
+        TransitionSettings s = winSequenceSettings;
+        
         // 1. SLOW MOTION
         Time.timeScale = slowMoTimeScale;
         Time.fixedDeltaTime = 0.02f * Time.timeScale;
         
-        yield return new WaitForSecondsRealtime(slowMoDuration);
+        yield return new WaitForSecondsRealtime(s.slowMoDuration); // Using setting
         
         // 2. IMPACT EFFECT (chromatic aberration burst)
         if (FeedbackManager.Instance != null) FeedbackManager.Instance.PlayImpact();
         
-        yield return new WaitForSecondsRealtime(0.4f); // Give effect time to be seen
+        yield return new WaitForSecondsRealtime(0.2f); 
         
-        // 3. CLOSE SHUTTERS
-        if (GameUI.Instance != null) GameUI.Instance.CloseShutters(false); // false = no built-in flash
-        
-        yield return new WaitForSecondsRealtime(0.4f); // Wait for shutters to close
+        // 3. NO SHUTTERS - SHOW "CLEAR" + SCORE ANIMATION
+        // We skip CloseShutters and ShowWinSummary
         
         // 4. RESTORE TIME
         Time.timeScale = 1f;
         Time.fixedDeltaTime = 0.02f;
         
-        // 5. SHOW SCORE
-        yield return new WaitForSecondsRealtime(winDelay);
-        
         if (GameUI.Instance != null) 
         {
-            GameUI.Instance.ShowWinSummary(baseScore, timer, totalScore, debuffName);
+            // Just pass the bonus (timer) as the 'bonusScore' to display
+            GameUI.Instance.ShowLoopClear(baseScore, timer, totalScore);
         }
         
+        // MOVED UP: Play Win SFX immediately when UI appears
         GameEvents.OnLoopCompleted?.Invoke();
-        autoAdvanceCoroutine = StartCoroutine(AutoAdvanceRoutine());
+        
+        // Wait for animation to finish (e.g., 3 seconds)
+        yield return new WaitForSecondsRealtime(3.0f);
+        
+        // 5. CLOSE SHUTTERS (Transition to new loop)
+        if (GameUI.Instance != null) GameUI.Instance.CloseShutters(0.5f, false);
+        yield return new WaitForSecondsRealtime(0.5f); // Wait for shutters
+        
+        // SKIP AUTO ADVANCE DELAY - Go straight to Rewind/New Loop
+        autoAdvanceCoroutine = StartCoroutine(RewindRoutine());
     }
 
     private void HandleGameOver()
@@ -377,21 +433,23 @@ public class GameManager : MonoBehaviour
     
     private IEnumerator CinematicDeathSequence()
     {
+        TransitionSettings s = deathSequenceSettings;
+        
         // 1. SLOW MOTION
         Time.timeScale = slowMoTimeScale;
         Time.fixedDeltaTime = 0.02f * Time.timeScale;
         
-        yield return new WaitForSecondsRealtime(slowMoDuration);
+        yield return new WaitForSecondsRealtime(s.slowMoDuration);
         
         // 2. IMPACT EFFECT (chromatic aberration burst)
         if (FeedbackManager.Instance != null) FeedbackManager.Instance.PlayImpact();
         
-        yield return new WaitForSecondsRealtime(0.4f); // Give effect time to be seen
+        yield return new WaitForSecondsRealtime(s.preShutterDelay); 
         
-        // 3. CLOSE SHUTTERS
-        if (GameUI.Instance != null) GameUI.Instance.CloseShutters(false);
+        // 3. CLOSE SHUTTERS - DISABLED FOR GAME OVER (User Request)
+        // if (GameUI.Instance != null) GameUI.Instance.CloseShutters(s.shutterDuration, false);
         
-        yield return new WaitForSecondsRealtime(0.4f);
+        yield return new WaitForSecondsRealtime(s.postShutterDelay);
         
         // 4. RESTORE TIME
         Time.timeScale = 1f;
@@ -409,7 +467,7 @@ public class GameManager : MonoBehaviour
         }
 
         // 6. SHOW GAME OVER
-        yield return new WaitForSecondsRealtime(winDelay);
+        yield return new WaitForSecondsRealtime(s.summaryDelay);
         
         if (GameUI.Instance != null) 
             GameUI.Instance.ShowGameOver(currentScore, currentLoop, savedHighScore, isNewRecord);
@@ -431,12 +489,17 @@ public class GameManager : MonoBehaviour
         StartNewLoop();
     }
     
+    [Header("Debug")]
+    public bool isTimerPaused = false;
+
     void Update() 
     {
         if (currentState != GameState.Playing) return;
 
         if (currentTimer > 0 && player.gameObject.activeSelf)
         {
+            if (isTimerPaused) return; // DBG
+
             float dt = Time.deltaTime;
             if (currentActiveDebuff != null) dt *= currentActiveDebuff.timerSpeedMultiplier;
             

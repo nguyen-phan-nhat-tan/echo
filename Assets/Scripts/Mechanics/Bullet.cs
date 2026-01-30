@@ -14,6 +14,20 @@ public class Bullet : MonoBehaviour
     private float timer;
     private float startTime; // For wave
 
+    private SpriteRenderer spriteRenderer;
+    private Color defaultColor;
+    private bool initialized = false;
+
+    private TrailRenderer trail; // NEW
+
+    void Awake()
+    {
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        trail = GetComponentInChildren<TrailRenderer>(); // NEW
+        if (spriteRenderer != null) defaultColor = spriteRenderer.color;
+        initialized = true;
+    }
+
     void OnEnable() 
     {
         timer = lifeTime;
@@ -23,6 +37,26 @@ public class Bullet : MonoBehaviour
         useRicochet = false;
         bounces = 0;
         gameObject.tag = "PlayerBullet"; 
+        
+        // Reset Color
+        if (initialized && spriteRenderer != null)
+        {
+            spriteRenderer.color = defaultColor;
+        }
+
+        // Reset Trail
+        if (trail != null)
+        {
+            trail.Clear(); // Critical for pooled objects
+        }
+    }
+
+    public void SetColor(Color color)
+    {
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = color;
+        }
     }
 
     // Initialize method to pass weapon data
@@ -36,12 +70,21 @@ public class Bullet : MonoBehaviour
         useRicochet = data.ricochet;
         bounces = data.ricochet ? 1 : 0;
         
-        // Spawn Trail
+        // Spawn Trail Logic - Optimized for Pooling
         if (sourceWeapon.bulletTrailPrefab != null)
         {
-            GameObject trail = Instantiate(sourceWeapon.bulletTrailPrefab, transform.position, Quaternion.identity);
-            trail.transform.SetParent(transform);
-            trail.transform.localPosition = Vector3.zero;
+            // Only instantiate if we don't already have a child trail from a previous use
+            // This is a simple check; for diverse weapons, we might need to destroy/replace, 
+            // but assuming one bullet type per pool, this works.
+            if (transform.childCount == 0 || (trail == null && GetComponentInChildren<TrailRenderer>() == null))
+            {
+                GameObject newTrail = Instantiate(sourceWeapon.bulletTrailPrefab, transform.position, Quaternion.identity);
+                newTrail.transform.SetParent(transform);
+                newTrail.transform.localPosition = Vector3.zero;
+                
+                // Cache it
+                trail = newTrail.GetComponent<TrailRenderer>();
+            }
         }
     }
 
@@ -66,6 +109,9 @@ public class Bullet : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D other)
     {
+        // 0. Game State Check (Prevent unexpected hits during Win/Loss)
+        if (GameManager.Instance != null && GameManager.Instance.currentState != GameState.Playing) return;
+
         // 1. Hit Wall
         if (other.CompareTag("Wall"))
         {
@@ -106,9 +152,9 @@ public class Bullet : MonoBehaviour
         {
             if (other.CompareTag("Player"))
             {
-                // Check for Dash Invulnerability
+                // Check for Dash Invulnerability OR Debug Invincibility
                 PlayerController pc = other.GetComponent<PlayerController>();
-                if (pc != null && pc.isDashing) return;
+                if (pc != null && (pc.isDashing || pc.isInvincible)) return;
 
                 Debug.Log("Player Hit!");
                 GameEvents.OnPlayerDeath?.Invoke();
