@@ -8,37 +8,32 @@ public class MainMenuManager : MonoBehaviour
     [Header("UI References")]
     public TextMeshProUGUI highScoreText;
     public CanvasGroup mainGroup;
-    public GameObject settingsMenu; // NEW: Settings Panel Reference
+    public GameObject settingsMenu;
 
     
     [Header("Scene Configuration")]
-    // IMPORTANT: Make sure your Game Scene is added to File -> Build Settings
     public string gameSceneName = "GameScene"; 
 
     void Start()
     {
-        // SAFETY FIX: Ensure time is running when we load the menu
-        // (In case we quit the game while it was paused)
+        // Ensure time is running when we load the menu
         Time.timeScale = 1f;
 
-        // 1. Load and Display High Score
-        float bestScore = PlayerPrefs.GetFloat("HighScore", 0f); // Fixed: Read as Float
+        // Load and Display High Score
+        float bestScore = PlayerPrefs.GetFloat("HighScore", 0f);
         
         if (highScoreText != null)
         {
-            // Always show score, even if 0
             highScoreText.text = bestScore.ToString("F2");
         }
             
-        // 2. Intro Animation (Smooth Fade In)
+        // Intro Animation
         if (mainGroup != null)
         {
             mainGroup.alpha = 0f;
             mainGroup.DOFade(1f, 1f).SetEase(Ease.OutExpo).SetLink(gameObject);
         }
     }
-
-    // Link this to your "PLAY" Button
     public void OnPlayPressed()
     {
         // Fade out before loading

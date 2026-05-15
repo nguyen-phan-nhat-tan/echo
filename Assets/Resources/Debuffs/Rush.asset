@@ -20,3 +20,4 @@ MonoBehaviour:
   timerSpeedMultiplier: 1.5
   drift: 0
   fog: 0
+  disableMiniMap: 0

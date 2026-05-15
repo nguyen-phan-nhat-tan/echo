@@ -13,10 +13,11 @@ MonoBehaviour:
   m_Name: Jammed
   m_EditorClassIdentifier: Assembly-CSharp::DebuffData
   debuffName: Jammed
-  description: Something's stuck in the barrel
+  description: A negative effect.
   moveSpeedMultiplier: 1
-  fireRateMultiplier: 0.2
+  fireRateMultiplier: 0.5
   dashCooldownMultiplier: 1
   timerSpeedMultiplier: 1
   drift: 0
   fog: 0
+  disableMiniMap: 0

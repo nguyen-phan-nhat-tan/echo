@@ -14,9 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DebuffData
   debuffName: Drift
   description: The floor is slippery
-  moveSpeedMultiplier: 1.3
+  moveSpeedMultiplier: 1.2
   fireRateMultiplier: 1
   dashCooldownMultiplier: 1
   timerSpeedMultiplier: 1
   drift: 1
   fog: 0
+  disableMiniMap: 0

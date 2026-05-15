@@ -17,7 +17,12 @@ public class GameUI : MonoBehaviour
     public Color warningColor = Color.red;
     public Color normalColor = Color.white;
     public GameObject pauseButton; 
-    public GameObject hudPanel; // NEW: Parent for HUD elements 
+    public GameObject hudPanel; // NEW: Parent for HUD elements
+
+    [Header("Mini Map")]
+    public Image miniMapBackground;
+    public RectTransform miniMapContainer;
+    private MiniMapController miniMapController; 
 
     [Header("Win Visuals")]
     public TextMeshProUGUI loopClearText; // NEW: CENTER "CLEAR"
@@ -88,6 +93,18 @@ public class GameUI : MonoBehaviour
         
         // Hide all content initially
         HideAllShutterContent();
+
+        // Setup mini map
+        if (miniMapContainer != null)
+        {
+            miniMapController = miniMapContainer.GetComponent<MiniMapController>();
+            if (miniMapController == null)
+            {
+                miniMapController = miniMapContainer.gameObject.AddComponent<MiniMapController>();
+            }
+            if (miniMapBackground != null) miniMapController.miniMapBackground = miniMapBackground;
+            miniMapController.miniMapContainer = miniMapContainer;
+        }
     }
 
     void HideAllShutterContent()
@@ -343,6 +360,20 @@ public class GameUI : MonoBehaviour
                 introDebuffText.text = "DEBUFF: " + debuffName + "\n<size=70%>" + debuffDesc + "</size>";
                 introDebuffText.gameObject.SetActive(true);
             }
+            else if (loopCount <= 5)
+            {
+                string tutorialText = GetLoopTutorialText(loopCount);
+                if (!string.IsNullOrEmpty(tutorialText))
+                {
+                    introDebuffText.text = tutorialText;
+                    introDebuffText.gameObject.SetActive(true);
+                }
+                else
+                {
+                    introDebuffText.text = "";
+                    introDebuffText.gameObject.SetActive(false);
+                }
+            }
             else
             {
                 introDebuffText.text = "";
@@ -384,6 +415,25 @@ public class GameUI : MonoBehaviour
         });
         seq.AppendInterval(0.7f); // Wait for shutters to open
         seq.OnComplete(() => onIntroFinished?.Invoke());
+    }
+
+    private string GetLoopTutorialText(int loopCount)
+    {
+        switch (loopCount)
+        {
+            case 1:
+                return "SHOOT ALL ENEMIES TO WIN";
+            case 2:
+                return "THE ENEMIES MOVE EXACTLY \nHOW YOU MOVED";
+            case 3:
+                return "RANDOM WEAPON EACH LOOP";
+            case 4:
+                return "YOU ARE INVULNERABLE WHILE DASHING";
+            case 5:
+                return "RANDOM DEBUFFS STARTING NEXT LOOP";
+            default:
+                return string.Empty;
+        }
     }
 
     // --- WIN SUMMARY (Close shutters, show summary) ---
@@ -548,4 +598,41 @@ public class GameUI : MonoBehaviour
             echoCountText.text = $"{count} REMAINING";
         }
     }
+
+    [Header("Tutorial UI")]
+    public GameObject tutorialPanel;
+    public TextMeshProUGUI tutorialPromptText;
+    public GameObject tutorialArrow;
+
+    [Header("Tutorial End")]
+    public GameObject tutorialEndPanel;
+    public TextMeshProUGUI tutorialEndText;
+
+    private Coroutine typewriterCoroutine;
+
+    public void ShowTutorialPrompt(string text)
+    {
+        if (tutorialPanel != null) tutorialPanel.SetActive(true);
+        if (tutorialArrow != null) tutorialArrow.SetActive(true);
+
+        if (typewriterCoroutine != null) StopCoroutine(typewriterCoroutine);
+        if (tutorialPromptText != null)
+        {
+            tutorialPromptText.text = text; // Simple set; typewriter optional
+        }
+    }
+
+    public void HideTutorialPrompt()
+    {
+        if (tutorialPanel != null) tutorialPanel.SetActive(false);
+        if (tutorialArrow != null) tutorialArrow.SetActive(false);
+        if (typewriterCoroutine != null) { StopCoroutine(typewriterCoroutine); typewriterCoroutine = null; }
+    }
+
+    public void ShowTutorialEnd(string message)
+    {
+        if (tutorialEndPanel != null) tutorialEndPanel.SetActive(true);
+        if (tutorialEndText != null) tutorialEndText.text = message;
+    }
+
 }
