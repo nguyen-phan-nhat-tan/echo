@@ -141,6 +141,7 @@ public class PlayerController : MonoBehaviour
     }
     
     // Virtual Input (Mobile)
+    [HideInInspector] public Vector2 virtualMove = Vector2.zero;
     [HideInInspector] public bool virtualFire = false;
     [HideInInspector] public bool virtualDash = false;
 
@@ -149,8 +150,14 @@ public class PlayerController : MonoBehaviour
         if (!canControl) return;
         if (isDashing) return;
         
+        Vector2 actionMove = Vector2.zero;
         if (moveAction != null)
-            moveInput = moveAction.action.ReadValue<Vector2>();
+        {
+            actionMove = moveAction.action.ReadValue<Vector2>();
+        }
+
+        // Touch joystick takes priority while active; keyboard/gamepad remains fallback.
+        moveInput = virtualMove.sqrMagnitude > 0.0001f ? virtualMove : actionMove;
         
         if (moveInput != Vector2.zero)
         {

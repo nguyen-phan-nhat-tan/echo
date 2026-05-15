@@ -10,14 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 44563ab6b502c5543845deafc440f330, type: 3}
-  m_Name: Heavy
+  m_Name: Fog
   m_EditorClassIdentifier: Assembly-CSharp::DebuffData
-  debuffName: Heavy
-  description: Less dashes for you
+  debuffName: Fog
+  description: No map
   moveSpeedMultiplier: 1
   fireRateMultiplier: 1
-  dashCooldownMultiplier: 0.5
+  dashCooldownMultiplier: 1
   timerSpeedMultiplier: 1
   drift: 0
-  fog: 0
-  disableMiniMap: 0
+  fog: 1
+  disableMiniMap: 1

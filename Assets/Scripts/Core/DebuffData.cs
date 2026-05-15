@@ -27,4 +27,5 @@ public class DebuffData : ScriptableObject
     [Header("Mechanics")]
     public bool drift = false; // Ice physics
     public bool fog = false;   // Turn on Vignette/Darkness
+    public bool disableMiniMap = false; // Hide the mini map during this debuff
 }
